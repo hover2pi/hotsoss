@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-A module to of utilities to assist awesim.py
+A module to of utilities
 
-Authors: Joe Filippazzo, Kevin Volk, Jonathan Fraine, Michael Wolfe
+Authors: Joe Filippazzo
 """
 
 import itertools
 from pkg_resources import resource_filename
 
+import astropy.constants as ac
 from astropy.io import fits
 import astropy.units as q
 import batman
@@ -15,9 +16,103 @@ from bokeh.palettes import Category20
 import numpy as np
 
 
+def spectral_response(wavelength, filt='CLEAR', subarray='SUBSTRIP256', order=1, calfile=None):
+    """
+    Get the relative spectral response for the given filter, order, and subarray
+
+    Parameters
+    ----------
+    wavelength: array-like
+        The wavelength array
+    filt: str
+        The filter name, ['CLEAR', 'F277W']
+    subarray: str
+        The subarray to use, ['FULL', 'SUBSTRIP256', 'SUBSTRIP96']
+    order: int
+        The dispersion order, [1, 2, 3]
+    calfile: str (optional)
+        A custom file to use for absolute calibration
+
+    Returns
+    -------
+    np.ndarray
+        The relative spectral response
+    """
+    # Valid filters
+    filters = ['CLEAR', 'F277W']
+
+    # Check the filter
+    if not isinstance(filt, str) or filt not in filters:
+        raise ValueError("'{}' not a supported filter. Try {}".format(filt, filters))
+
+    # Check the order
+    if not order in [1, 2, 3]:
+        raise ValueError("{}: Not a valid order. Please select from [1, 2, 3].".format(order))
+
+    # Get absolute calibration reference file
+    calfile = calfile or resource_filename('hotsoss', 'files/niriss_ref_photom.fits')
+    caldata = fits.getdata(calfile)
+
+    # Get relative spectral response for the order (from
+    # /grp/crds/jwst/references/jwst/jwst_niriss_photom_0028.fits)
+    throughput = caldata[(caldata['pupil'] == 'GR700XD') & (caldata['filter'] == filt) & (caldata['order'] == order)]
+    ph_wave = throughput.wavelength[throughput.wavelength > 0][1:-2]
+    ph_resp = throughput.relresponse[throughput.wavelength > 0][1:-2]
+    response = np.interp(wavelength, ph_wave, ph_resp)
+
+    return response
+
+
 def color_gen():
-    """Generator for a Bokeh color palette"""
+    """
+    Generator for a Bokeh color palette
+    """
     yield from itertools.cycle(Category20[20])
+
+
+def counts_to_flux(wavelength, counts, filt='CLEAR', subarray='SUBSTRIP256', order=1, units=q.erg/q.s/q.cm**2/q.AA, **kwargs):
+    """
+    Convert the given counts to flux density in the given units
+
+    Parameters
+    ----------
+    counts: array-like
+        The counts in [ADU/s]
+    order: int
+        The dispersion order
+    units: astropy.units.quantity.Quantity
+        The flux density units for the result
+
+    Returns
+    -------
+    np.ndarray
+        The flux density
+    """
+    # Check the order
+    if not order in [1, 2, 3]:
+        raise ValueError("{}: Not a valid order. Please select from [1, 2, 3].".format(order))
+
+    # Check the units
+    if not (units.is_equivalent(q.erg/q.s/q.cm**2/q.AA) or units.is_equivalent(q.Jy)):
+        raise ValueError('{}: Flux density must be in units of F_nu or F_lambda'.format(units))
+
+    # Get the frame time
+    # frame_time = subarray_specs(subarray)
+
+    # Get the relative spectral response
+    response = spectral_response(wavelength, filt=filt, subarray=subarray, order=order, **kwargs)
+
+    # Convert response in [mJy/ADU/s] to [Flam/ADU/s] or [Fnu/ADU/s]
+    if units.is_equivalent(q.Jy):
+        response = (response*q.mJy).to(units).value
+    else:
+        response = (response*q.mJy*ac.c/(wavelength*q.um)**2).to(units).value
+
+    # Multiply response in [Flam/ADU/s] by counts in [ADU/s] for flux (is frame_time needed?)
+    flux = counts*response
+    flux[flux == np.inf] = 0
+
+    return flux
 
 
 def planet_data():
@@ -52,43 +147,7 @@ def star_data():
     return star1D
 
 
-def transit_params(time):
-    """
-    Dummy transit parameters for time series simulations
-
-    Parameters
-    ----------
-    time: sequence
-        The time axis of the transit observation
-
-    Returns
-    -------
-    batman.transitmodel.TransitModel
-        The transit model
-    """
-    params = batman.TransitParams()
-    params.t0 = 0.                                # time of inferior conjunction
-    params.per = 5.7214742                        # orbital period (days)
-    params.a = 0.0558*q.AU.to(q.R_sun)*0.66      # semi-major axis (in units of stellar radii)
-    params.inc = 89.8                             # orbital inclination (in degrees)
-    params.ecc = 0.                               # eccentricity
-    params.w = 90.                                # longitude of periastron (in degrees)
-    params.limb_dark = 'quadratic'                # limb darkening profile to use
-    params.u = [0.1, 0.1]                          # limb darkening coefficients
-    params.rp = 0.                                # planet radius (placeholder)
-    tmodel = batman.TransitModel(params, time)
-    tmodel.teff = 3500                            # effective temperature of the host star
-    tmodel.logg = 5                               # log surface gravity of the host star
-    tmodel.feh = 0                                # metallicity of the host star
-
-    return tmodel
-
-
-COLORS = color_gen()
-STAR_DATA = star_data()
-PLANET_DATA = planet_data()
-
-def subarray(subarr):
+def subarray_specs(subarr):
     """
     Get the pixel information for a NIRISS subarray
 
@@ -124,7 +183,39 @@ def subarray(subarr):
     return pix[subarr]
 
 
-def wave_solutions(subarr=None, order=None, file=None):
+def transit_params(time):
+    """
+    Dummy transit parameters for time series simulations
+
+    Parameters
+    ----------
+    time: sequence
+        The time axis of the transit observation
+
+    Returns
+    -------
+    batman.transitmodel.TransitModel
+        The transit model
+    """
+    params = batman.TransitParams()
+    params.t0 = 0.                                # time of inferior conjunction
+    params.per = 5.7214742                        # orbital period (days)
+    params.a = 0.0558*q.AU.to(q.R_sun)*0.66      # semi-major axis (in units of stellar radii)
+    params.inc = 89.8                             # orbital inclination (in degrees)
+    params.ecc = 0.                               # eccentricity
+    params.w = 90.                                # longitude of periastron (in degrees)
+    params.limb_dark = 'quadratic'                # limb darkening profile to use
+    params.u = [0.1, 0.1]                          # limb darkening coefficients
+    params.rp = 0.                                # planet radius (placeholder)
+    tmodel = batman.TransitModel(params, time)
+    tmodel.teff = 3500                            # effective temperature of the host star
+    tmodel.logg = 5                               # log surface gravity of the host star
+    tmodel.feh = 0                                # metallicity of the host star
+
+    return tmodel
+
+
+def wave_solutions(subarray=None, order=None, file=None):
     """
     Get the wavelength maps for SOSS orders 1, 2, and 3
     This will be obsolete once the apply_wcs step of the JWST pipeline
@@ -132,7 +223,7 @@ def wave_solutions(subarr=None, order=None, file=None):
 
     Parameters
     ----------
-    subarr: str
+    subarray: str
         The subarray to return, ['SUBSTRIP96', 'SUBSTRIP256', 'FULL']
     order: int (optional)
         The trace order, [1, 2, 3]
@@ -149,9 +240,9 @@ def wave_solutions(subarr=None, order=None, file=None):
         file = resource_filename('hotsoss', '/files/soss_wavelengths_fullframe.fits')
 
     # Trim to the correct subarray
-    if subarr == 'SUBSTRIP256':
+    if subarray == 'SUBSTRIP256':
         idx = slice(0, 256)
-    elif subarr == 'SUBSTRIP96':
+    elif subarray == 'SUBSTRIP96':
         idx = slice(160, 256)
     else:
         idx = slice(0, 2048)
@@ -166,3 +257,8 @@ def wave_solutions(subarr=None, order=None, file=None):
     wave = fits.getdata(file).swapaxes(-2, -1)[order, idx, ::-1]
 
     return wave
+
+
+COLORS = color_gen()
+STAR_DATA = star_data()
+PLANET_DATA = planet_data()

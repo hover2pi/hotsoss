@@ -10,7 +10,7 @@ import os
 
 from astropy.io import fits
 from bokeh.plotting import figure, show
-from bokeh.models import HoverTool, LogColorMapper, LogTicker, LinearColorMapper, ColorBar, Span
+from bokeh.models import HoverTool, LogColorMapper, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider
 from bokeh.layouts import column
 import numpy as np
 
@@ -18,7 +18,109 @@ from . import utils
 from . import locate_trace as lt
 
 
-def plot_frame(frame, scale='linear', trace_coeffs=None, saturation=0.8, title=None):
+def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, title=None, wavecal=None):
+    """
+    Plot a SOSS frame
+
+    Parameters
+    ----------
+    data: sequence
+        The 4D data to plot
+    scale: str
+        Plot scale, ['linear', 'log']
+    trace_coeffs: sequence
+        Plot the traces for the given coefficients
+    saturation: float
+        The full-well fraction to be considered saturated, (0, 1)
+    title: str
+        A title for the plot
+    wavecal: np.ndarray
+        A wavelength calibration map for each pixel
+    """
+    # Reshape into (frames, nrows, ncols)
+    dims = data.shape
+
+    # Test
+    data[1, 50:100, 50:100] *= 100.
+
+    # Get data, snr, and saturation for plotting
+    vmin = int(np.nanmin(data[data >= 0]))
+    vmax = int(np.nanmax(data[data < np.inf]))
+    dat = data
+    snr = np.sqrt(data)
+    fullWell = 65536.0
+    sat = dat > saturation * fullWell
+    sat = sat.astype(int)
+
+    # Wrap the data in two ColumnDataSources
+    source_visible = dict(data=[dat[idx]], snr=[snr[idx]], saturation=[sat[idx]])
+    source_available = dict(data=[dat], snr=[snr], saturation=[sat])
+
+    # Set the tooltips
+    tooltips = [("(x,y)", "($x{int}, $y{int})"), ("ADU/s", "@data"), ("SNR", "@snr"), ('Saturation', '@saturation')]
+
+    # Add wavelength calibration if possible
+    if isinstance(wavecal, np.ndarray):
+        if wavecal.shape == dat[idx].shape:
+            source_visible['wave1'] = [wavecal]
+            tooltips.append(("Wavelength", "@wave1"))
+        if wavecal.ndim == 3 and wavecal.shape[0] == 3:
+            source_visible['wave1'] = [wavecal[0]]
+            source_visible['wave2'] = [wavecal[1]]
+            source_visible['wave3'] = [wavecal[2]]
+            tooltips.append(("Wave 1", "@wave1"))
+            tooltips.append(("Wave 2", "@wave2"))
+            tooltips.append(("Wave 3", "@wave3"))
+
+    # Make the figure
+    fig = figure(x_range=(0, dims[2]), y_range=(0, dims[1]),
+                 tooltips=tooltips, width=1024, height=int(dims[1]/2.)+50,
+                 title=title, toolbar_location='above', toolbar_sticky=True)
+
+    # Plot the frame
+    if scale == 'log':
+        source['data'][source['data'] < 1.] = 1.
+        color_mapper = LogColorMapper(palette="Viridis256", low=vmin, high=vmax)
+        fig.image(source=source_visible, image='data', x=0, y=0, dw=dims[2], dh=dims[1], color_mapper=color_mapper)
+        color_bar = ColorBar(color_mapper=color_mapper, ticker=LogTicker(), orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
+
+    else:
+        color_mapper = LinearColorMapper(palette="Viridis256", low=vmin, high=vmax)
+        fig.image(source=source_visible, image='data', x=0, y=0, dw=dims[2], dh=dims[1], palette='Viridis256')
+        color_bar = ColorBar(color_mapper=color_mapper, orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
+
+    # Plot the trace polynomials
+    if trace_coeffs is not None:
+        X = np.linspace(0, 2048, 2048)
+
+        for coeffs in trace_coeffs:
+            Y = np.polyval(coeffs, X)
+            fig.line(X, Y, color='red')
+
+    slider = Slider(title='Frame', value=idx, start=0, end=dims[0], step=1)
+
+    # Define CustomJS callback, which updates the plot based on selected function
+    # by updating the source_visible ColumnDataSource
+    slider.callback = CustomJS(
+        args=dict(source_visible=source_visible,
+                  source_available=source_available),
+                  code="""
+                       var selected_function = cb_obj.value;
+
+                       // Get the data from the data sources
+                       var data_visible = source_visible.data;
+                       var data_available = source_available.data;
+
+                       // Change y-axis data according to the selected value
+                       data_visible = data_available[selected_function];
+
+                       // Update the plot
+                       source_visible.change.emit();
+                       """)
+
+    return column(fig, slider)
+    
+def plot_frame(frame, scale='linear', trace_coeffs=None, saturation=0.8, title=None, wavecal=None):
     """
     Plot a SOSS frame
 
@@ -30,13 +132,18 @@ def plot_frame(frame, scale='linear', trace_coeffs=None, saturation=0.8, title=N
         Plot scale, ['linear', 'log']
     trace_coeffs: sequence
         Plot the traces for the given coefficients
-    draw: bool
-        Render the figure instead of returning it
+    saturation: float
+        The full-well fraction to be considered saturated, (0, 1)
+    title: str
+        A title for the plot
+    wavecal: np.ndarray
+        A wavelength calibration map for each pixel
     """
     # Determine subarray
     nrows, ncols = frame.shape
 
     # Get data, snr, and saturation for plotting
+    vmin = int(np.nanmin(frame[frame >= 0]))
     vmax = int(np.nanmax(frame[frame < np.inf]))
     dat = frame
     snr = np.sqrt(frame)
@@ -44,43 +151,49 @@ def plot_frame(frame, scale='linear', trace_coeffs=None, saturation=0.8, title=N
     sat = dat > saturation * fullWell
     sat = sat.astype(int)
 
-    # Make the figure
+    # Set the source data
+    source = dict(data=[dat], snr=[snr], saturation=[sat])
+
+    # Set the tooltips
     tooltips = [("(x,y)", "($x{int}, $y{int})"), ("ADU/s", "@data"), ("SNR", "@snr"), ('Saturation', '@saturation')]
+
+    # Add wavelength calibration if possible
+    if isinstance(wavecal, np.ndarray):
+        if wavecal.shape == frame.shape:
+            source['wave1'] = [wavecal]
+            tooltips.append(("Wavelength", "@wave1"))
+        if wavecal.ndim == 3 and wavecal.shape[0] == 3:
+            source['wave1'] = [wavecal[0]]
+            source['wave2'] = [wavecal[1]]
+            source['wave3'] = [wavecal[2]]
+            tooltips.append(("Wave 1", "@wave1"))
+            tooltips.append(("Wave 2", "@wave2"))
+            tooltips.append(("Wave 3", "@wave3"))
+
+    # Make the figure
     fig = figure(x_range=(0, dat.shape[1]), y_range=(0, dat.shape[0]),
                  tooltips=tooltips, width=1024, height=int(nrows/2.)+50,
                  title=title, toolbar_location='above', toolbar_sticky=True)
 
     # Plot the frame
     if scale == 'log':
-        dat[dat < 1.] = 1.
-        source = dict(data=[dat], snr=[snr], saturation=[sat])
-        color_mapper = LogColorMapper(palette="Viridis256", low=dat.min(), high=dat.max())
-        fig.image(source=source, image='data', x=0, y=0, dw=dat.shape[1],
-                  dh=dat.shape[0], color_mapper=color_mapper)
-        color_bar = ColorBar(color_mapper=color_mapper, ticker=LogTicker(),
-                             orientation="horizontal", label_standoff=12,
-                             border_line_color=None, location=(0, 0))
+        source['data'][source['data'] < 1.] = 1.
+        color_mapper = LogColorMapper(palette="Viridis256", low=vmin, high=vmax)
+        fig.image(source=source, image='data', x=0, y=0, dw=dat.shape[1], dh=dat.shape[0], color_mapper=color_mapper)
+        color_bar = ColorBar(color_mapper=color_mapper, ticker=LogTicker(), orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
 
     else:
-        source = dict(data=[dat], snr=[snr], saturation=[sat])
-        color_mapper = LinearColorMapper(palette="Viridis256", low=dat.min(), high=dat.max())
-        fig.image(source=source, image='data', x=0, y=0, dw=dat.shape[1],
-                  dh=dat.shape[0], palette='Viridis256')
-        color_bar = ColorBar(color_mapper=color_mapper,
-                             orientation="horizontal", label_standoff=12,
-                             border_line_color=None, location=(0, 0))
+        color_mapper = LinearColorMapper(palette="Viridis256", low=vmin, high=vmax)
+        fig.image(source=source, image='data', x=0, y=0, dw=dat.shape[1], dh=dat.shape[0], palette='Viridis256')
+        color_bar = ColorBar(color_mapper=color_mapper, orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
 
-    # Plot the polynomial too
+    # Plot the trace polynomials
     if trace_coeffs is not None:
         X = np.linspace(0, 2048, 2048)
 
-        # Order 1
-        Y = np.polyval(trace_coeffs[0], X)
-        fig.line(X, Y, color='red')
-
-        # Order 2
-        Y = np.polyval(trace_coeffs[1], X)
-        fig.line(X, Y, color='red')
+        for coeffs in trace_coeffs:
+            Y = np.polyval(coeffs, X)
+            fig.line(X, Y, color='red')
 
     return fig
 
@@ -105,7 +218,7 @@ def plot_slice(frame, col, idx=0, **kwargs):
         col = [col]
 
     # Plot the frame
-    dfig = plot_frame(frame)
+    dfig = plot_frame(frame, **kwargs)
 
     # Make the figure
     fig = figure(width=1024, height=500)
@@ -215,57 +328,44 @@ def plot_lightcurve(self, column, time_unit='s', resolution_mult=20, draw=True):
     else:
         return lc
 
-def plot_spectrum(self, frame=0, order=None, noise=False, scale='log', draw=True):
+
+def plot_spectrum(wavelength, flux, fig=None, scale='log', legend=None, ylabel='Flux Density', xlabel='Wavelength [um]', width=1024, height=500, **kwargs):
     """
+    Plot a generic spectrum
+
     Parameters
     ----------
-    frame: int
-        The frame number to plot
-    order: sequence
-        The order to isolate
-    noise: bool
-        Plot with the noise model
+    wavelength: array-like
+        The 1D wavelength array
+    flux: array-like
+        The 1D counts or flux
+    fig: bokeh.plotting.figure.Figure (optional)
+        The plot to add the spectrum to 
     scale: str
         Plot scale, ['linear', 'log']
-    draw: bool
-        Render the figure instead of returning it
+    legend: str
+        The text for the legend
+    ylabel: str
+        The text for the y-axis
+    xlabel: str
+        The text for the x-axis
+    width: int
+        The width of the plot
+    height: int
+        The height of the plot
+
+    Returns
+    -------
+    bokeh.plotting.figure.Figure
+        The figure
     """
-    if order in [1, 2]:
-        tso = getattr(self, 'tso_order{}_ideal'.format(order))
-    else:
-        if noise:
-            tso = self.tso
-        else:
-            tso = self.tso_ideal
+    # Make the figure
+    if fig is None:
+        fig = figure(x_axis_type=scale, y_axis_type=scale, width=width, height=height)
 
-    # Get extracted spectrum (Column sum for now)
-    wave = np.mean(self.wave[0], axis=0)
-    flux_out = np.sum(tso.reshape(self.dims3)[frame].data, axis=0)
-    response = 1./self.order1_response
+    # Add the spectrum plot
+    fig.step(wavelength, flux, mode='center', legend=legend, **kwargs)
+    fig.yaxis.axis_label = ylabel
+    fig.xaxis.axis_label = xlabel
 
-    # Convert response in [mJy/ADU/s] to [Flam/ADU/s] then invert so
-    # that we can convert the flux at each wavelegth into [ADU/s]
-    flux_out *= response/self.time[np.mod(self.ngrps, frame)]
-
-    # Trim wacky extracted edges
-    flux_out[0] = flux_out[-1] = np.nan
-
-    # Plot it along with input spectrum
-    flux_in = np.interp(wave, self.star[0], self.star[1])
-
-    # Make the spectrum plot
-    spec = figure(x_axis_type=scale, y_axis_type=scale, width=1024, height=500)
-    spec.step(wave, flux_out, mode='center', legend='Extracted', color='red')
-    spec.step(wave, flux_in, mode='center', legend='Injected', alpha=0.5)
-    spec.yaxis.axis_label = 'Flux Density [{}]'.format(self.star[1].unit)
-
-    # Get the residuals
-    res = figure(x_axis_type=scale, x_range=spec.x_range, width=1024, height=150)
-    res.step(wave, flux_out-flux_in, mode='center')
-    res.xaxis.axis_label = 'Wavelength [{}]'.format(self.star[0].unit)
-    res.yaxis.axis_label = 'Residuals'
-
-    if draw:
-        show(column(spec, res))
-    else:
-        return column(spec, res)
+    return fig

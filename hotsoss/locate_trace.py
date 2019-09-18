@@ -288,27 +288,75 @@ def isolate_signal(idx, frame, bounds=None, sigma=3, err=None, radius=None, filt
     return ord1, ord2
 
 
-def trace_polynomial(order):
+def trace_polynomial(order=None, evaluate=False):
     """The polynomial that describes the order trace
 
     Parameters
     ----------
-    order: int
+    order: int, NoneType
         The order polynomial
+    evaluate: bool
+        Evaluate the polynomial on [0, 2048]
 
     Returns
     -------
     sequence
         The y values of the given order across the 2048 pixels
     """
+    # Coefficients to use
     coeffs = [[1.71164994e-11, -4.72119272e-08, 5.10276801e-05, -5.91535309e-02, 8.30680347e+01],
               [2.35792131e-13, 2.42999478e-08, 1.03641247e-05, -3.63088657e-02, 9.96766537e+01]]
 
-    return np.polyval(coeffs[order-1], np.arange(2048))
+    # Specify the orders
+    if order is None:
+        slc = slice(None)
+    elif isinstance(order, int) and order <= len(coeffs):
+        slc = slice(order-1, order)
+    else:
+        raise ValueError("{}: order not understood".format(order))
+
+    # Slice and dice
+    result = coeffs[slc]
+
+    # Evaluate
+    if evaluate:
+        return np.array([np.polyval(coeff, np.arange(2048)) for coeff in result]).squeeze()
+
+    else:
+        return result if order is None else result[0]
+
+
+def trace_wavelengths(order=None, wavecal_file=None, npix=10, subarray='SUBSTRIP256'):
+    """
+    Return the average wavelength of N pixels in each column centered on trace
+    """
+    results = []
+
+    # Get the pixel coordinates for the center of the trace
+    trace_pixels = trace_polynomial(evaluate=True)
+
+    # Load the wavelength calibration data
+    wavecal = utils.wave_solutions(subarray=subarray, file=wavecal_file)[:2]
+
+    # Get average wavelength of N pixels
+    for pix, wave_map in zip(trace_pixels, wavecal):
+
+        # Get average wavelength
+        wave_cols = wave_map.swapaxes(0, 1)
+        wavelengths = np.array([np.mean(col[i-npix:i+npix]) for i, col in zip(pix.astype(int), wave_cols)])
+
+        # Add to the results
+        results.append(wavelengths)
+
+    # Select the right order
+    if order in [1, 2]:
+        results = results[order-1]
+
+    return results
 
 
 def wavelength_bins(save=False, subarray='SUBSTRIP256', wavecal_file=None):
-    """Determine all the pixels in each wavelength bin for orders 1, 2, and 3
+    """Determine all the pixels in each wavelength bin for orders 1 and 2
 
     Parameters
     ----------
@@ -318,43 +366,46 @@ def wavelength_bins(save=False, subarray='SUBSTRIP256', wavecal_file=None):
         The subarray to use
     wavecal_file: str (optional)
         The path to the wavelength calibration file
+
+    Returns
+    -------
+    list
+        The (x, y) coordinates of all the pixels in each wavelength bin
     """
     file = resource_filename('hotsoss', 'files/wavelength_bins.npy')
 
     if save:
 
-        # Load the filters
-        filters = []
-        for ord in [1, 2, 3]:
-            filt = resource_filename('hotsoss', 'files/GR700XD_{}.txt'.format(ord))
-            if os.path.isfile(filt):
-                filters.append(np.genfromtxt(filt, unpack=True))
+        # Get the pixel coordinates for the center of the trace
+        trace_pixels = trace_polynomial(evaluate=True)
 
         # Load the wavelength calibration data
-        wavecal = utils.wave_solutions(subarr=subarray, file=wavecal_file)
-        signal_pixels = [[], [], []]
+        wavecal = utils.wave_solutions(subarray=subarray, file=wavecal_file)[:2]
+        wavelengths = trace_wavelengths(order=None, wavecal_file=wavecal_file, npix=10, subarray=subarray)
+        signal_pixels = [[], []]
 
-        # # Store the pixel coordinates of each wavelength bin for each order
-        for order, (throughput, wave_map) in enumerate(zip(filters, wavecal)):
+        # Store the pixel coordinates of each wavelength bin for each order
+        for order, (pix, wave_map, wave_center) in enumerate(zip(trace_pixels, wavecal, wavelengths)):
 
             # Make a mask for each wavelength bin
-            for n, w in enumerate(throughput[0]):
+            for n, w in enumerate(wave_center):
 
                 # Edge cases
                 try:
-                    w0 = throughput[0][n-1]
+                    w0 = wave_center[n-1]
                 except IndexError:
                     w0 = 0.1
 
                 try:
-                    w1 = throughput[0][n+1]
+                    w1 = wave_center[n+1]
                 except IndexError:
                     w1 = 10
 
-                # Define the width of the wavelength bin as half-way
-                # between neighboring points
+                # Define the width of the wavelength bin as half-way between neighboring points
+                # and sort in case wavelength decreases to the right
                 dw0 = np.mean([w0, w])
                 dw1 = np.mean([w1, w])
+                dw0, dw1 = sorted([dw0, dw1])
 
                 # Isolate the signal pixels
                 signal = np.where(np.logical_and(wave_map >= dw0, wave_map < dw1))
