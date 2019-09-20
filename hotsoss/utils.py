@@ -96,8 +96,8 @@ def counts_to_flux(wavelength, counts, filt='CLEAR', subarray='SUBSTRIP256', ord
     if not (units.is_equivalent(q.erg/q.s/q.cm**2/q.AA) or units.is_equivalent(q.Jy)):
         raise ValueError('{}: Flux density must be in units of F_nu or F_lambda'.format(units))
 
-    # Get the frame time
-    # frame_time = subarray_specs(subarray)
+    # Get the frame time for the given subarray
+    frame_time = subarray_specs(subarray)['tfrm']
 
     # Get the relative spectral response
     response = spectral_response(wavelength, filt=filt, subarray=subarray, order=order, **kwargs)
@@ -109,7 +109,7 @@ def counts_to_flux(wavelength, counts, filt='CLEAR', subarray='SUBSTRIP256', ord
         response = (response*q.mJy*ac.c/(wavelength*q.um)**2).to(units).value
 
     # Multiply response in [Flam/ADU/s] by counts in [ADU/s] for flux (is frame_time needed?)
-    flux = counts*response
+    flux = counts*response/frame_time
     flux[flux == np.inf] = 0
 
     return flux
