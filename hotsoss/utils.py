@@ -11,7 +11,6 @@ from pkg_resources import resource_filename
 import astropy.constants as ac
 from astropy.io import fits
 import astropy.units as q
-import batman
 from bokeh.palettes import Category20
 import numpy as np
 
@@ -209,23 +208,27 @@ def transit_params(time, teff=3500, logg=5., feh=0.):
     batman.transitmodel.TransitModel
         The transit model
     """
-    params = batman.TransitParams()
-    params.t0 = 0.                                # time of inferior conjunction
-    params.per = 5.7214742                        # orbital period (days)
-    params.a = 0.0558*q.AU.to(q.R_sun)*0.66       # semi-major axis (in units of stellar radii)
-    params.inc = 89.8                             # orbital inclination (in degrees)
-    params.ecc = 0.                               # eccentricity
-    params.w = 90.                                # longitude of periastron (in degrees)
-    params.limb_dark = 'quadratic'                # limb darkening profile to use
-    params.u = [0.1, 0.1]                         # limb darkening coefficients
-    params.rp = 0.                                # planet radius (placeholder)
-    tmodel = batman.TransitModel(params, time)
-    tmodel.teff = teff                            # effective temperature of the host star
-    tmodel.logg = logg                            # log surface gravity of the host star
-    tmodel.feh = feh                              # metallicity of the host star
+    try:
+        import batman
+        params = batman.TransitParams()
+        params.t0 = 0.                                # time of inferior conjunction
+        params.per = 5.7214742                        # orbital period (days)
+        params.a = 0.0558*q.AU.to(q.R_sun)*0.66       # semi-major axis (in units of stellar radii)
+        params.inc = 89.8                             # orbital inclination (in degrees)
+        params.ecc = 0.                               # eccentricity
+        params.w = 90.                                # longitude of periastron (in degrees)
+        params.limb_dark = 'quadratic'                # limb darkening profile to use
+        params.u = [0.1, 0.1]                         # limb darkening coefficients
+        params.rp = 0.                                # planet radius (placeholder)
+        tmodel = batman.TransitModel(params, time)
+        tmodel.teff = teff                            # effective temperature of the host star
+        tmodel.logg = logg                            # log surface gravity of the host star
+        tmodel.feh = feh                              # metallicity of the host star
 
-    return tmodel
+        return tmodel
 
+    except ImportError:
+        return None
 
 def wave_solutions(subarray=None, order=None, file=None):
     """

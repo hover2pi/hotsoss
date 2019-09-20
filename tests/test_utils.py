@@ -164,9 +164,15 @@ def test_star_data():
 
 def test_transit_params():
     """Check transit_params model loads"""
-    time = np.linspace(0, 1, 100)
-    tp = utils.transit_params(time)
-    assert str(type(tp)) == "<class 'batman.transitmodel.TransitModel'>"
+    try:
+        import batman
+
+        time = np.linspace(0, 1, 100)
+        tp = utils.transit_params(time)
+        assert str(type(tp)) == "<class 'batman.transitmodel.TransitModel'>"
+
+    except ImportError:
+        pass
 
 
 def test_subarray_specs():
