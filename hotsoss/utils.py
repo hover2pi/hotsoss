@@ -76,10 +76,16 @@ def counts_to_flux(wavelength, counts, filt='CLEAR', subarray='SUBSTRIP256', ord
 
     Parameters
     ----------
+    wavelength: array-like
+        The wavelength values for each count
     counts: array-like
         The counts in [ADU/s]
+    filt: str
+        The filter name, ['CLEAR', 'F277W']
+    subarray: str
+        The subarray to use, ['FULL', 'SUBSTRIP256', 'SUBSTRIP96']
     order: int
-        The dispersion order
+        The dispersion order, [1, 2, 3]
     units: astropy.units.quantity.Quantity
         The flux density units for the result
 
@@ -124,7 +130,7 @@ def planet_data():
     sequence
         The wavelength and atmospheric transmission of the planet
     """
-    planet_file = resource_filename('awesimsoss', '/files/WASP107b_pandexo_input_spectrum.dat')
+    planet_file = resource_filename('hotsoss', '/files/WASP107b_pandexo_input_spectrum.dat')
     planet = np.genfromtxt(planet_file, unpack=True)
     planet1D = [planet[0]*q.um, planet[1]]
 
@@ -140,7 +146,7 @@ def star_data():
     sequence
         The wavelength and flux of the star
     """
-    star_file = resource_filename('awesimsoss', 'files/scaled_spectrum.txt')
+    star_file = resource_filename('hotsoss', 'files/scaled_spectrum.txt')
     star = np.genfromtxt(star_file, unpack=True)
     star1D = [star[0]*q.um, (star[1]*q.W/q.m**2/q.um).to(q.erg/q.s/q.cm**2/q.AA)]
 
@@ -183,7 +189,7 @@ def subarray_specs(subarr):
     return pix[subarr]
 
 
-def transit_params(time):
+def transit_params(time, teff=3500, logg=5., feh=0.):
     """
     Dummy transit parameters for time series simulations
 
@@ -191,6 +197,12 @@ def transit_params(time):
     ----------
     time: sequence
         The time axis of the transit observation
+    teff: float
+        The effective temperature of the host star
+    logg: float
+        The surface gravity of the host star
+    feh: float
+        The metallicity of the host star
 
     Returns
     -------
@@ -200,17 +212,17 @@ def transit_params(time):
     params = batman.TransitParams()
     params.t0 = 0.                                # time of inferior conjunction
     params.per = 5.7214742                        # orbital period (days)
-    params.a = 0.0558*q.AU.to(q.R_sun)*0.66      # semi-major axis (in units of stellar radii)
+    params.a = 0.0558*q.AU.to(q.R_sun)*0.66       # semi-major axis (in units of stellar radii)
     params.inc = 89.8                             # orbital inclination (in degrees)
     params.ecc = 0.                               # eccentricity
     params.w = 90.                                # longitude of periastron (in degrees)
     params.limb_dark = 'quadratic'                # limb darkening profile to use
-    params.u = [0.1, 0.1]                          # limb darkening coefficients
+    params.u = [0.1, 0.1]                         # limb darkening coefficients
     params.rp = 0.                                # planet radius (placeholder)
     tmodel = batman.TransitModel(params, time)
-    tmodel.teff = 3500                            # effective temperature of the host star
-    tmodel.logg = 5                               # log surface gravity of the host star
-    tmodel.feh = 0                                # metallicity of the host star
+    tmodel.teff = teff                            # effective temperature of the host star
+    tmodel.logg = logg                            # log surface gravity of the host star
+    tmodel.feh = feh                              # metallicity of the host star
 
     return tmodel
 
