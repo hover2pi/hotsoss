@@ -70,7 +70,7 @@ class TestPlotRamp(unittest.TestCase):
     def setUp(self):
         """Test instance setup"""
         # Make frames for testing
-        self.frames = np.ones((2, 2 256, 2048))
+        self.frames = np.ones((2, 2, 256, 2048))
 
     def test_ramp(self):
         """Test that a ramp plot can be created"""
