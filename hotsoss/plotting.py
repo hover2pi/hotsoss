@@ -178,7 +178,7 @@ def plot_frame(frame, scale='linear', trace_coeffs=None, saturation=0.8, title=N
 
     # Plot the frame
     if scale == 'log':
-        source['data'][source['data'] < 1.] = 1.
+        source['data'][0][source['data'][0] < 1.] = 1.
         color_mapper = LogColorMapper(palette="Viridis256", low=vmin, high=vmax)
         fig.image(source=source, image='data', x=0, y=0, dw=dat.shape[1], dh=dat.shape[0], color_mapper=color_mapper)
         color_bar = ColorBar(color_mapper=color_mapper, ticker=LogTicker(), orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
