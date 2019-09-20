@@ -67,10 +67,6 @@ class TestSpectralResponse(unittest.TestCase):
         kwargs = {'wavelength': self.wave, 'order': 4}
         self.assertRaises(ValueError, utils.spectral_response, **kwargs)
 
-        # Test bad subarray
-        kwargs = {'wavelength': self.wave, 'subarray': None}
-        self.assertRaises(ValueError, utils.spectral_response, **kwargs)
-
 
 def test_colorgen():
     """Check color generator works"""
@@ -84,8 +80,8 @@ class TestCountsToFlux(unittest.TestCase):
         """Test instance setup"""
         # Make wavelength for testing
         self.n = 100
-        self.wave = np.linspace(1, 2, n)
-        self.counts = np.ones(n)*20000.
+        self.wave = np.linspace(1, 2, self.n)
+        self.counts = np.ones(self.n)*20000.
 
     def test_flux(self):
         """Test counts_to_flux function"""
@@ -194,14 +190,18 @@ def test_wave_solutions():
     """Check wave_solutions works"""
     # SUBSTRIP256
     wav = utils.wave_solutions('SUBSTRIP256')
-    assert wav.shape == (256, 2048)
+    assert wav.shape == (3, 256, 2048)
 
     # SUBSTRIP96
     wav = utils.wave_solutions('SUBSTRIP96')
-    assert wav.shape == (96, 2048)
+    assert wav.shape == (3, 96, 2048)
 
     # FULL
     wav = utils.wave_solutions('FULL')
+    assert wav.shape == (3, 2048, 2048)
+
+    # Single order
+    wav = utils.wave_solutions('FULL', order=1)
     assert wav.shape == (2048, 2048)
 
 

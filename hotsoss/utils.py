@@ -93,9 +93,22 @@ def counts_to_flux(wavelength, counts, filt='CLEAR', subarray='SUBSTRIP256', ord
     np.ndarray
         The flux density
     """
+    # Valid input
+    filters = ['CLEAR', 'F277W']
+    orders = [1, 2, 3]
+    subarrays = ['SUBSTRIP256', 'SUBSTRIP96', 'FULL']
+
+    # Check the filter
+    if filt not in filters:
+        raise ValueError("'{}' not a valid filter. Try {}".format(filt, filters))
+
+    # Check the subarray
+    if subarray not in subarrays:
+        raise ValueError("'{}' not a valid subarray. Try {}".format(subarray, subarrays))
+
     # Check the order
-    if not order in [1, 2, 3]:
-        raise ValueError("{}: Not a valid order. Please select from [1, 2, 3].".format(order))
+    if order not in orders:
+        raise ValueError("'{}' not a valid order. Try {}".format(order, orders))
 
     # Check the units
     if not (units.is_equivalent(q.erg/q.s/q.cm**2/q.AA) or units.is_equivalent(q.Jy)):
