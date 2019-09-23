@@ -20,94 +20,6 @@ from . import utils
 warnings.simplefilter('ignore')
 
 
-def order_masks(frame, subarray='SUBSTRIP256', n_jobs=4, plot=False, save=False, **kwargs):
-    """
-    Generate a mask of the SOSS frame based on the column fits from isolate_signal
-
-    Parameters
-    ----------
-    frame: array-like
-        The 2D frame of SOSS data
-    n_jobs: int
-        The number of jobs for multiprocessing
-    plot: bool
-        Plot the masks
-    save: bool
-        Save the masks to file
-
-    Returns
-    -------
-    sequence
-        A masked frame for each trace order
-    """
-    # Get the file
-    file = resource_filename('hotsoss', 'files/order_masks.npy')
-
-    # Generate the trace masks
-    if save:
-
-        # Make 2 unmasked frames
-        order1 = np.zeros_like(frame)
-        order2 = np.zeros_like(frame)
-
-        # Multiprocess spectral extraction for frames
-        print("Coffee time! This takes about 3 minutes...")
-        pool = ThreadPool(n_jobs)
-        func = partial(isolate_signal, frame=frame, **kwargs)
-        masks = pool.map(func, range(2048))
-        pool.close()
-        pool.join()
-
-        # Set the mask in each column
-        for n, (ord1, ord2) in enumerate(masks):
-            order1[:, n] = ord1
-            order2[:, n] = ord2
-
-        # Save to file
-        np.save(file, np.array([order1, order2]))
-
-    # Or grab them from file
-    else:
-
-        # Open the file
-        try:
-            order1, order2 = np.load(file)
-        except FileNotFoundError:
-            print("No order mask file. Generating one now...")
-            order1, order2 = order_masks(frame, save=True, plot=plot)
-            return
-
-    # Trim if SUBSTRIP96
-    if subarray == 'SUBSTRIP96':
-        order1 = order1[:96]
-        order2 = order2[:96]
-
-    if plot:
-
-        # Make the figure
-        height, width = order1.shape
-        fig1 = figure(x_range=(0, width), y_range=(0, height),
-                      tooltips=[("x", "$x"), ("y", "$y"), ("value", "@image")],
-                      width=int(width/2), height=height, title='Order 1 Mask')
-
-        # Make the figure
-        fig2 = figure(x_range=(0, width), y_range=(0, height),
-                      tooltips=[("x", "$x"), ("y", "$y"), ("value", "@image")],
-                      width=int(width/2), height=height, title='Order 2 Mask')
-
-        # Plot the order mask
-        fig1.image(image=[order1], x=0, y=0, dw=width, dh=height,
-                   palette='Viridis256')
-
-        # Plot the order mask
-        fig2.image(image=[order2], x=0, y=0, dw=width, dh=height,
-                   palette='Viridis256')
-
-        show(column([fig1, fig2]))
-
-    return order1, order2
-
-
 def isolate_signal(idx, frame, bounds=None, sigma=3, err=None, radius=None, filt='CLEAR', plot=False):
     """
     Fit a mixed gaussian function to the signal in a column of data. 
@@ -147,8 +59,7 @@ def isolate_signal(idx, frame, bounds=None, sigma=3, err=None, radius=None, filt
     ord2 = np.ones_like(col)
 
     # Use the trace centers as the position of the center peak
-    x1 = trace_polynomial(1)[idx]
-    x2 = trace_polynomial(2)[idx]
+    x1, x2 = trace_polynomial(evaluate=True)[:, idx]
 
     # Set the column at which order 2 ends
     order2end = 1900 if col.size == 256 else 1050
@@ -286,6 +197,137 @@ def isolate_signal(idx, frame, bounds=None, sigma=3, err=None, radius=None, filt
         show(fig)
 
     return ord1, ord2
+
+
+def order_masks(frame, subarray='SUBSTRIP256', n_jobs=4, plot=False, save=False, **kwargs):
+    """
+    Generate a mask of the SOSS frame based on the column fits from isolate_signal
+
+    Parameters
+    ----------
+    frame: array-like
+        The 2D frame of SOSS data
+    n_jobs: int
+        The number of jobs for multiprocessing
+    plot: bool
+        Plot the masks
+    save: bool
+        Save the masks to file
+
+    Returns
+    -------
+    sequence
+        A masked frame for each trace order
+    """
+    # Get the file
+    file = resource_filename('hotsoss', 'files/order_masks.npy')
+
+    # Generate the trace masks
+    if save:
+
+        # Make 2 unmasked frames
+        order1 = np.zeros_like(frame)
+        order2 = np.zeros_like(frame)
+
+        # Multiprocess spectral extraction for frames
+        print("Coffee time! This takes about 3 minutes...")
+        pool = ThreadPool(n_jobs)
+        func = partial(isolate_signal, frame=frame, **kwargs)
+        masks = pool.map(func, range(2048))
+        pool.close()
+        pool.join()
+
+        # Set the mask in each column
+        for n, (ord1, ord2) in enumerate(masks):
+            order1[:, n] = ord1
+            order2[:, n] = ord2
+
+        # Save to file
+        np.save(file, np.array([order1, order2]))
+
+    # Or grab them from file
+    else:
+
+        # Open the file
+        try:
+            order1, order2 = np.load(file)
+        except FileNotFoundError:
+            print("No order mask file. Generating one now...")
+            order1, order2 = order_masks(frame, save=True, plot=plot)
+            return
+
+    # Trim if SUBSTRIP96
+    if subarray == 'SUBSTRIP96':
+        order1 = order1[:96]
+        order2 = order2[:96]
+
+    if plot:
+
+        # Make the figure
+        height, width = order1.shape
+        fig1 = figure(x_range=(0, width), y_range=(0, height),
+                      tooltips=[("x", "$x"), ("y", "$y"), ("value", "@image")],
+                      width=int(width/2), height=height, title='Order 1 Mask')
+
+        # Make the figure
+        fig2 = figure(x_range=(0, width), y_range=(0, height),
+                      tooltips=[("x", "$x"), ("y", "$y"), ("value", "@image")],
+                      width=int(width/2), height=height, title='Order 2 Mask')
+
+        # Plot the order mask
+        fig1.image(image=[order1], x=0, y=0, dw=width, dh=height,
+                   palette='Viridis256')
+
+        # Plot the order mask
+        fig2.image(image=[order2], x=0, y=0, dw=width, dh=height,
+                   palette='Viridis256')
+
+        show(column([fig1, fig2]))
+
+    return order1, order2
+
+
+def simulate_frame(order_amps=(100, 10), plot=False):
+    """
+    Create a fake frame with traces
+
+    Parameters
+    ----------
+    order_amps: sequence
+        The amplitudes for each order
+    """
+    # Make empty frame
+    idx = 500
+    nrows = 256
+    frame = np.zeros((2048, nrows))
+
+    # Get the traces
+    traces = trace_polynomial(evaluate=True)
+
+    # Get the batman PSF
+    x = np.arange(40)
+    psf = xdsp.batman(x, 20, 10, 20, 6, 50, 10)
+    pix = int(len(psf)/2)
+
+    # Iterate over the frame columns placing the psf, trimming where necessary
+    for amp, trace in zip(order_amps, traces):
+        for col, y in enumerate(trace):
+            y = int(y)
+            start = max(0, y-pix)
+            end = min(y+pix, nrows)
+            frame[col, start:end] += psf[start-(y-pix):max(0, 2*pix-((y+pix)-end))]*amp
+
+    # Transpose frame
+    frame = frame.T
+
+    if plot:
+
+        # Make the figure
+        fig = figure(x_range=(0, 2048), y_range=(0, nrows), width=1024, height=140)
+        fig.image(image=[frame], x=0, y=0, dw=2048, dh=nrows, palette='Viridis256')
+        show(fig)
+
+    return frame
 
 
 def trace_polynomial(order=None, evaluate=False):
