@@ -24,11 +24,11 @@ def test_isolate_signal():
     # Make frame for testing
     frame = lt.simulate_frame()
 
-    # CLEAR
-    assert len(lt.isolate_signal(500, frame)) == 2
+    # CLEAR and plot
+    assert len(lt.isolate_signal(500, frame, plot=True)) == 2
 
-    # F277W
-    assert len(lt.isolate_signal(500, frame, filt='F277W')) == 2
+    # F277W and radius
+    assert len(lt.isolate_signal(500, frame, filt='F277W', radius=20)) == 2
 
 
 def test_order_masks():

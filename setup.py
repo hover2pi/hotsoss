@@ -29,7 +29,7 @@ setup(
     ],
     description="Helpful Organizational Tools for SOSS",
     entry_points={},
-    install_requires=['numpy', 'astropy', 'bokeh'],
+    install_requires=['numpy', 'astropy', 'bokeh', 'scipy'],
     license="MIT license",
     long_description=readme + '\n\n' + history,
     include_package_data=True,
