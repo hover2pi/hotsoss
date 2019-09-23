@@ -287,12 +287,14 @@ def order_masks(frame, subarray='SUBSTRIP256', n_jobs=4, plot=False, save=False,
     return order1, order2
 
 
-def simulate_frame(order_amps=(100, 10), plot=False):
+def simulate_frame(filt='CLEAR', order_amps=(100, 10), plot=False):
     """
     Create a fake frame with traces
 
     Parameters
     ----------
+    filt: str
+        The filter to use, ['CLEAR', 'F277W']
     order_amps: sequence
         The amplitudes for each order
     """
@@ -303,19 +305,24 @@ def simulate_frame(order_amps=(100, 10), plot=False):
 
     # Get the traces
     traces = trace_polynomial(evaluate=True)
+    waves = trace_wavelengths()
+
+    # Determine cutoff for filter
+    cutoff = 2.37 if filt == 'F277W' else 0
 
     # Get the batman PSF
     x = np.arange(40)
-    psf = xdsp.batman(x, 20, 10, 20, 6, 50, 10)
+    psf = xdsp.batman(x, 20, 5, 10, 6, 50, 8)
     pix = int(len(psf)/2)
 
     # Iterate over the frame columns placing the psf, trimming where necessary
-    for amp, trace in zip(order_amps, traces):
-        for col, y in enumerate(trace):
-            y = int(y)
-            start = max(0, y-pix)
-            end = min(y+pix, nrows)
-            frame[col, start:end] += psf[start-(y-pix):max(0, 2*pix-((y+pix)-end))]*amp
+    for wave, amp, trace in zip(waves, order_amps, traces):
+        for col, (w, y) in enumerate(zip(wave, trace)):
+            if w > cutoff:
+                y = int(y)
+                start = max(0, y-pix)
+                end = min(y+pix, nrows)
+                frame[col, start:end] += psf[start-(y-pix):max(0, 2*pix-((y+pix)-end))]*amp
 
     # Transpose frame
     frame = frame.T

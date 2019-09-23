@@ -12,7 +12,11 @@ from hotsoss import locate_trace as lt
 
 def test_simulate_frame():
     """Test the simulate_frame function"""
+    # CLEAR and plot test
     assert lt.simulate_frame(plot=True).shape == (256, 2048)
+
+    # F277W test
+    assert lt.simulate_frame(filt='F277W').shape == (256, 2048)
 
 
 def test_isolate_signal():
@@ -20,7 +24,11 @@ def test_isolate_signal():
     # Make frame for testing
     frame = lt.simulate_frame()
 
+    # CLEAR
     assert len(lt.isolate_signal(500, frame)) == 2
+
+    # F277W
+    assert len(lt.isolate_signal(500, frame, filt='F277W')) == 2
 
 
 def test_order_masks():
@@ -28,7 +36,11 @@ def test_order_masks():
     # Make frame for testing
     frame = lt.simulate_frame()
 
+    # Test plot and defaults
     assert len(lt.order_masks(frame, plot=True)) == 2
+
+    # Test save and subarray
+    assert len(lt.order_masks(frame, subarray='SUBSTRIP96', save=True)) == 2
 
 
 def test_trace_polynomial():
