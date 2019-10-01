@@ -31,7 +31,7 @@ setup(
     entry_points={},
     install_requires=['numpy', 'astropy', 'bokeh', 'scipy'],
     license="MIT license",
-    long_description=readme + '\n\n' + history,
+    long_description="This pure Python 3.5+ package contains helpful reference file organizational tools and data visulaization functions that may be useful in analyzing observations from the Single Object Slitless Spectroscopy (SOSS) mode of the Near-Infrared Imager and Slitless Spectrograph (NIRISS) instrument onboard the James Webb Space Telescope (JWST).",
     include_package_data=True,
     keywords='hotsoss',
     name='hotsoss',
