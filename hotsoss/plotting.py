@@ -9,9 +9,9 @@ from pkg_resources import resource_filename
 import os
 
 from astropy.io import fits
-from bokeh.plotting import figure, show
+from bokeh.plotting import figure, show, output_file, ColumnDataSource
 from bokeh.models import HoverTool, LogColorMapper, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider
-from bokeh.layouts import column
+from bokeh.layouts import gridplot
 import numpy as np
 
 from . import utils
@@ -371,3 +371,114 @@ def plot_spectrum(wavelength, flux, fig=None, scale='log', legend=None, ylabel='
     fig.xaxis.axis_label = xlabel
 
     return fig
+
+
+def plot_time_series_spectra(fluxes, wavelength, width=1024, height=300, title=None, **kwargs):
+    """
+    Plot time series 1D spectra as an image
+
+    Parameters
+    ----------
+    fluxes: array-like
+        The 2D counts or flux
+    wavelength: array-like
+        The 1D wavelength array
+    scale: str
+        Plot scale, ['linear', 'log']
+    width: int
+        The width of the plot
+    height: int
+        The height of the plot
+    title: str
+        A title for the plot
+
+    Returns
+    -------
+    bokeh.plotting.figure.Figure
+        The figure
+    """
+    output_file('foo.html')
+
+    # Get plot params
+    dh, dw = fluxes.shape
+    fmin = np.nanmin(fluxes)
+    fmax = np.nanmax(fluxes)
+    wmin = np.nanmin(wavelength)
+    wmax = np.nanmax(wavelength)
+    lightcurves = fluxes.T
+
+    # Set the source data
+    source = ColumnDataSource(data=dict(x=np.zeros(dh), y=np.zeros(dw), frames=np.arange(dh), wavelengths=np.arange(dw),
+                                        wavelength=wavelength, flux=fluxes[0], lightcurve=lightcurves[0],
+                                        **{'flux{}'.format(n): flux for n, flux in enumerate(fluxes)},
+                                        **{'lightcurve{}'.format(n): lc for n, lc in enumerate(lightcurves)}
+                                        ))
+
+    # ====================================================================
+
+    # Make the 2D spectra figure
+    spec_fig = figure(x_range=(0, dw), y_range=(0, dh), width=width, height=height, title=title, toolbar_location='above', toolbar_sticky=True)
+
+    # Plot the image
+    # source.data['flux'][0][source.data['flux'][0] < 1.] = 1.
+    color_mapper = LogColorMapper(palette="Viridis256", low=fmin, high=fmax)
+    spec_fig.image(image=[fluxes], x=0, y=0, dw=dw, dh=dh, color_mapper=color_mapper, alpha=0.8)
+    color_bar = ColorBar(color_mapper=color_mapper, ticker=LogTicker(), orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
+
+    # Add current lightcurve line to plot
+    spec_fig.line(x='x', y='frames', source=source, color='red', line_width=3)
+
+    # Add current spectrum line to plot
+    spec_fig.line(x='wavelengths', y='y', source=source, color='blue', line_width=3)
+
+    # ====================================================================
+
+    # Make the 1D spectrum figure
+    sp_fig = figure(x_range=(wmin, wmax), y_range=(fmin, fmax), width=width, height=height, x_axis_label='Wavelength', y_axis_label='Flux Density', title='Spectrum')
+
+    # Draw the spectrum
+    sp_fig.line('wavelength', 'flux', source=source, color='blue', line_width=3, line_alpha=0.6)
+
+    # Make the spectrum slider
+    sp_slider = Slider(value=0, start=0, end=dh, step=1, width=30, title="Frame", orientation='vertical', direction='rtl')
+
+    # ====================================================================
+
+    # Make the 1D lightcurve figure
+    lc_fig = figure(x_range=(0, dh), y_range=(0, dw), width=width, height=height, x_axis_label='Frame', y_axis_label='Flux Density', title='Lightcurve')
+
+    # Draw the lightcurve
+    lc_fig.line('frames', 'lightcurve', source=source, color='red', line_width=3, line_alpha=0.6)
+
+    # Make the lightcurve slider
+    lc_slider = Slider(value=0, start=0, end=dw, step=1, width=width+40, title="Wavelength [um]")
+
+    # ====================================================================
+
+    # Define CustomJS callback, which updates the plot based on selected function
+    callback = CustomJS(args=dict(source=source, sp_slide=sp_slider, lc_slide=lc_slider), code="""
+        var data = source.data;
+        var sp = sp_slide.value;
+        var lc = lc_slide.value;
+        var wavelength = data['wavelength'];
+        var frames = data['frames'];
+        var x = data['x'];
+        var y = data['y'];
+        data['flux'] = data['flux'.concat(sp.toString(10))];
+        data['lightcurve'] = data['lightcurve'.concat(lc.toString(10))];
+        for (var i = 0; i < x.length; i++) {
+            x[i] = lc;
+        };
+        for (var i = 0; i < y.length; i++) {
+            y[i] = sp;
+        };
+        source.change.emit();
+    """)
+
+    # Add callback to spectrum slider
+    sp_slider.js_on_change('value', callback)
+
+    # Add callback to lightcurve slider
+    lc_slider.js_on_change('value', callback)
+
+    return gridplot([[sp_fig, None],[spec_fig, sp_slider], [lc_slider, None], [lc_fig, None]])

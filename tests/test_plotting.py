@@ -95,3 +95,18 @@ class TestPlotSpectrum(unittest.TestCase):
         # With figure
         fig2 = plt.plot_spectrum(self.wave, self.flux, fig=fig)
         self.assertEqual(str(type(fig2)), "<class 'bokeh.plotting.figure.Figure'>")
+
+
+class TestPlotTimeSeriesSpectra(unittest.TestCase):
+    """Test plot_time_series_spectra function"""
+    def setUp(self):
+        """Test instance setup"""
+        # Make spectrum for testing
+        self.wave = np.linspace(1, 2, 2048)
+        self.flux = np.random.normal(loc=1000., size=(100, 2048), scale=10.)
+
+    def test_tso(self):
+        """Test that a spectrum plot can be created"""
+        # No figure
+        fig = plt.plot_time_series_spectra(self.flux, self.wave)
+        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
