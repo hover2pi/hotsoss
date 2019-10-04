@@ -440,7 +440,7 @@ def plot_time_series_spectra(fluxes, wavelength, width=1024, height=300, title=N
     sp_fig.line('wavelength', 'flux', source=source, color='blue', line_width=3, line_alpha=0.6)
 
     # Make the spectrum slider
-    sp_slider = Slider(value=0, start=0, end=dh, step=1, width=30, title="Frame", orientation='vertical', direction='rtl')
+    sp_slider = Slider(value=0, start=0, end=dh, step=1, width=30, title="Frame", orientation='vertical', direction='rtl', bar_color='blue')
 
     # ====================================================================
 
@@ -451,7 +451,7 @@ def plot_time_series_spectra(fluxes, wavelength, width=1024, height=300, title=N
     lc_fig.line('frames', 'lightcurve', source=source, color='red', line_width=3, line_alpha=0.6)
 
     # Make the lightcurve slider
-    lc_slider = Slider(value=0, start=0, end=dw, step=1, width=width+40, title="Wavelength [um]")
+    lc_slider = Slider(value=0, start=0, end=dw, step=1, width=width+40, title="Wavelength [um]", bar_color='red')
 
     # ====================================================================
 
