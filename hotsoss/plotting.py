@@ -177,7 +177,7 @@ def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, 
             fig.line(X, Y, color='red')
 
     # Make the frame slider
-    slider = Slider(title='Frame', value=idx, start=0, end=dims[0], step=1)
+    slider = Slider(title='Frame', value=idx, start=0, end=dims[0]-1, step=1)
 
     # CustomJS callback to update the three plots on slider changes
     callback = CustomJS(args=dict(visible=source_visible, available=source_available, slide=slider), code="""
@@ -434,7 +434,7 @@ def plot_time_series_spectra(fluxes, wavelength, width=1024, height=300, title=N
     sp_fig.line('wavelength', 'flux', source=sourceX, color='blue', line_width=3, line_alpha=0.6)
 
     # Make the spectrum slider
-    sp_slider = Slider(value=0, start=0, end=dh, step=1, width=30, title="Frame", orientation='vertical', direction='rtl', bar_color='blue')
+    sp_slider = Slider(value=0, start=0, end=dh-1, step=1, width=30, title="Frame", orientation='vertical', direction='rtl', bar_color='blue')
 
     # ====================================================================
 
