@@ -6,3 +6,9 @@ History
 ------------------
 
 * First release on PyPI.
+
+
+0.1.1 (2019-10-11)
+------------------
+
+* Added interactive plots.
