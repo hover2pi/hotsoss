@@ -10,6 +10,6 @@ recursive-exclude * *.py[co]
 
 recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif
 
-graft files
+graft hotsoss/files
 
 global-exclude *.pyc 
