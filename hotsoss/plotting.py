@@ -9,8 +9,9 @@ from pkg_resources import resource_filename
 import os
 
 from astropy.io import fits
-from bokeh.plotting import figure, show, output_file, ColumnDataSource
-from bokeh.models import HoverTool, LogColorMapper, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider
+from bokeh.plotting import figure, show, output_file
+from bokeh.models import ColumnDataSource, HoverTool, LogColorMapper, FixedTicker, BasicTickFormatter, FuncTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider
+from bokeh.models.widgets import Panel, Tabs
 from bokeh.layouts import gridplot, column
 import numpy as np
 
@@ -41,13 +42,16 @@ def plot_frame(frame, scale='linear', trace_coeffs=None, saturation=0.8, title=N
     nrows, ncols = frame.shape
 
     # Get data, snr, and saturation for plotting
-    vmin = int(np.nanmin(frame[frame >= 0]))
-    vmax = int(np.nanmax(frame[frame < np.inf]))
     dat = frame
     snr = np.sqrt(frame)
     fullWell = 65536.0
     sat = dat > saturation * fullWell
     sat = sat.astype(int)
+    dh, dw = dat.shape
+
+    # Fix if log scale
+    if scale == 'log':
+        dat[dat < 1.] = 1.
 
     # Set the source data
     source = dict(data=[dat], snr=[snr], saturation=[sat])
@@ -68,32 +72,67 @@ def plot_frame(frame, scale='linear', trace_coeffs=None, saturation=0.8, title=N
             tooltips.append(("Wave 2", "@wave2"))
             tooltips.append(("Wave 3", "@wave3"))
 
-    # Make the figure
-    fig = figure(x_range=(0, dat.shape[1]), y_range=(0, dat.shape[0]),
-                 tooltips=tooltips, width=1024, height=int(nrows/2.)+50,
-                 title=title, toolbar_location='above', toolbar_sticky=True)
+    # Set shared plot params
+    x_range = (0, dat.shape[1])
+    y_range = (0, dat.shape[0])
+    height = int(nrows/2.)+160
+    toolbar = 'above'
 
-    # Plot the frame
-    if scale == 'log':
-        source['data'][0][source['data'][0] < 1.] = 1.
-        color_mapper = LogColorMapper(palette="Viridis256", low=vmin, high=vmax)
-        fig.image(source=source, image='data', x=0, y=0, dw=dat.shape[1], dh=dat.shape[0], color_mapper=color_mapper)
-        color_bar = ColorBar(color_mapper=color_mapper, ticker=LogTicker(), orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
+    # Draw the figures
+    tabs = []
+    for pname, ptype in zip(['Counts', 'SNR', 'Saturation ({}% Full Well)'.format(saturation*100)], ['data', 'snr', 'saturation']):
 
-    else:
-        color_mapper = LinearColorMapper(palette="Viridis256", low=vmin, high=vmax)
-        fig.image(source=source, image='data', x=0, y=0, dw=dat.shape[1], dh=dat.shape[0], palette='Viridis256')
-        color_bar = ColorBar(color_mapper=color_mapper, orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
+        # Make the figure
+        fig_title = '{} - {}'.format(title, pname)
+        fig = figure(x_range=x_range, y_range=y_range, tooltips=tooltips, width=1024, height=height, title=fig_title, toolbar_location=toolbar, toolbar_sticky=True)
 
-    # Plot the trace polynomials
-    if trace_coeffs is not None:
-        X = np.linspace(0, 2048, 2048)
+        # Get the data
+        vals = source[ptype][0]
 
-        for coeffs in trace_coeffs:
-            Y = np.polyval(coeffs, X)
-            fig.line(X, Y, color='red')
+        # Saturation plot is different
+        if ptype == 'saturation':
+            vmin = 0
+            vmax = 1
+            formatter = FuncTickFormatter(code="""return {0: 'Unsaturated', 1: 'Saturated'}[tick]""")
+            color_map = ['#404387', '#FDE724']
+            ticker = FixedTicker(ticks=[vmin, vmax])
 
-    return fig
+        # Counts and SNR are similar plots
+        else:
+            vmin = int(np.nanmin(vals[vals >= 0]))
+            vmax = int(np.nanmax(vals[vals < np.inf]))
+            formatter = BasicTickFormatter()
+            color_map = 'Viridis256'
+            ticker = BasicTicker()
+
+        # Set the plot scale
+        if scale == 'log':
+            mapper = LogColorMapper(palette=color_map, low=vmin, high=vmax)
+        else:
+            mapper = LinearColorMapper(palette=color_map, low=vmin, high=vmax)
+
+        # Plot the frame
+        fig.image(source=source, image=ptype, x=0, y=0, dw=dw, dh=dh, color_mapper=mapper)
+        color_bar = ColorBar(color_mapper=mapper, ticker=ticker, formatter=formatter, orientation="horizontal", location=(0, 0))
+
+        # Plot the trace polynomials
+        if trace_coeffs is not None:
+            X = np.linspace(0, 2048, 2048)
+
+            for coeffs in trace_coeffs:
+                Y = np.polyval(coeffs, X)
+                fig.line(X, Y, color='red')
+
+        # Add the colorbar
+        fig.add_layout(color_bar, 'below')
+
+        # Add the figure to the tab list
+        tabs.append(Panel(child=fig, title=pname))
+
+    # Make the final tabbed figure
+    final = Tabs(tabs=tabs)
+
+    return final
 
 
 def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, width=1024, height=300, title=None, wavecal=None):
