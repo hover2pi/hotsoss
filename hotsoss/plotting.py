@@ -156,12 +156,14 @@ def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, 
     """
     output_file('soss_frames.html')
 
+    # Determine subarray
+    nframes, nrows, ncols = data.shape
+
     # Fix log scale plot values
     if scale == 'log':
         data[data < 1.] = 1.
 
     # Get data, snr, and saturation for plotting
-    dims = data.shape
     vmin = int(np.nanmin(data[data >= 0]))
     vmax = int(np.nanmax(data[data < np.inf]))
     dat = data
@@ -171,7 +173,7 @@ def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, 
     sat = sat.astype(int)
 
     # Wrap the data in two ColumnDataSources
-    frames = range(len(dat))
+    frames = range(nframes)
     source_available = ColumnDataSource(data=dict(**{'counts{}'.format(n): dat[n] for n in frames}, **{'snr{}'.format(n): snr[n] for n in frames}, **{'saturation{}'.format(n): sat[n] for n in frames}))
     source_visible = ColumnDataSource(data=dict(counts=[dat[idx]], snr=[snr[idx]], saturation=[sat[idx]]))
 
@@ -191,32 +193,68 @@ def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, 
             tooltips.append(("Wave 2", "@wave2"))
             tooltips.append(("Wave 3", "@wave3"))
 
-    # Make the figure
-    fig = figure(x_range=(0, dims[2]), y_range=(0, dims[1]),
-                 tooltips=tooltips, width=width, height=height,
-                 title=title, toolbar_location='above', toolbar_sticky=True)
+    # Set shared plot params
+    x_range = (0, ncols)
+    y_range = (0, nrows)
+    height = int(nrows/2.)+160
+    toolbar = 'above'
+    
+    # Draw the figures
+    tabs = []
+    for pname, ptype in zip(['Counts', 'SNR', 'Saturation ({}% Full Well)'.format(saturation*100)], ['counts', 'snr', 'saturation']):
 
-    # Plot the frame
-    if scale == 'log':
-        color_mapper = LogColorMapper(palette="Viridis256", low=vmin, high=vmax)
-        fig.image(source=source_visible, image='counts', x=0, y=0, dw=dims[2], dh=dims[1], color_mapper=color_mapper)
-        color_bar = ColorBar(color_mapper=color_mapper, ticker=LogTicker(), orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
+        # Make the figure
+        fig_title = '{} - {}'.format(title, pname)
+        fig = figure(x_range=x_range, y_range=y_range, tooltips=tooltips, width=1024, height=height, title=fig_title, toolbar_location=toolbar, toolbar_sticky=True)
 
-    else:
-        color_mapper = LinearColorMapper(palette="Viridis256", low=vmin, high=vmax)
-        fig.image(source=source_visible, image='counts', x=0, y=0, dw=dims[2], dh=dims[1], palette='Viridis256')
-        color_bar = ColorBar(color_mapper=color_mapper, orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
+        # Get the data
+        vals = source_visible.data[ptype][0]
 
-    # Plot the trace polynomials
-    if trace_coeffs is not None:
-        X = np.linspace(0, 2048, 2048)
+        # Saturation plot is different
+        if ptype == 'saturation':
+            vmin = 0
+            vmax = 1
+            formatter = FuncTickFormatter(code="""return {0: 'Unsaturated', 1: 'Saturated'}[tick]""")
+            color_map = ['#404387', '#FDE724']
+            ticker = FixedTicker(ticks=[vmin, vmax])
 
-        for coeffs in trace_coeffs:
-            Y = np.polyval(coeffs, X)
-            fig.line(X, Y, color='red')
+        # Counts and SNR are similar plots
+        else:
+            vmin = int(np.nanmin(vals[vals >= 0]))
+            vmax = int(np.nanmax(vals[vals < np.inf]))
+            formatter = BasicTickFormatter()
+            color_map = 'Viridis256'
+            ticker = BasicTicker()
+
+        # Set the plot scale
+        if scale == 'log':
+            mapper = LogColorMapper(palette=color_map, low=vmin, high=vmax)
+        else:
+            mapper = LinearColorMapper(palette=color_map, low=vmin, high=vmax)
+
+        # Plot the frame
+        fig.image(source=source_visible, image=ptype, x=0, y=0, dw=ncols, dh=nrows, color_mapper=mapper)
+        color_bar = ColorBar(color_mapper=mapper, ticker=ticker, formatter=formatter, orientation="horizontal", location=(0, 0))
+
+        # Plot the trace polynomials
+        if trace_coeffs is not None:
+            X = np.linspace(0, 2048, 2048)
+
+            for coeffs in trace_coeffs:
+                Y = np.polyval(coeffs, X)
+                fig.line(X, Y, color='red')
+
+        # Add the colorbar
+        fig.add_layout(color_bar, 'below')
+
+        # Add the figure to the tab list
+        tabs.append(Panel(child=fig, title=pname))
+
+    # Make the final tabbed figure
+    final = Tabs(tabs=tabs)
 
     # Make the frame slider
-    slider = Slider(title='Frame', value=idx, start=0, end=dims[0]-1, step=1)
+    slider = Slider(title='Frame', value=idx, start=0, end=nframes-1, step=1)
 
     # CustomJS callback to update the three plots on slider changes
     callback = CustomJS(args=dict(visible=source_visible, available=source_available, slide=slider), code="""
@@ -232,7 +270,7 @@ def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, 
     # Add callback to spectrum slider
     slider.js_on_change('value', callback)
 
-    return column(fig, slider)
+    return column(final, slider)
 
 
 def plot_slice(frame, col, **kwargs):
