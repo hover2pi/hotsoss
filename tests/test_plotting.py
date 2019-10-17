@@ -83,24 +83,6 @@ class TestPlotFrames(unittest.TestCase):
         self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Column'>")
 
 
-class TestPlotSlice(unittest.TestCase):
-    """Test plot_slice function"""
-    def setUp(self):
-        """Test instance setup"""
-        # Make frame for testing
-        self.frame = np.ones((256, 2048))
-
-    def test_col(self):
-        """Test that a plot of a given column can be created"""
-        # Single column
-        fig = plt.plot_slice(self.frame, 500)
-        self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Column'>")
-
-        # Multiple columns
-        fig = plt.plot_slice(self.frame, [500, 1000, 1500])
-        self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Column'>")
-
-
 class TestPlotRamp(unittest.TestCase):
     """Test plot_ramp function"""
     def setUp(self):

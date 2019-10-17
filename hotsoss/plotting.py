@@ -184,14 +184,14 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     source_visible = ColumnDataSource(data=dict(counts=[dat[idx]], snr=[snr[idx]], saturation=[sat[idx]]))
     vertical_available = ColumnDataSource(data=dict(**{'vertical{}'.format(n): vert for n, vert in enumerate(verticals)}))
     vertical_visible = ColumnDataSource(data=dict(column=rows, vertical=verticals[col]))
-    col_available = ColumnDataSource(data=dict(**{'counts{}'.format(n): dat[0, :, n] for n in columns}, **{'snr{}'.format(n): snr[0, :, n] for n in columns}, **{'saturation{}'.format(n): sat[0, :, n] for n in columns}))
+    # col_available = ColumnDataSource(data=dict(**{'counts{}'.format(n): dat[0, :, n] for n in columns}, **{'snr{}'.format(n): snr[0, :, n] for n in columns}, **{'saturation{}'.format(n): sat[0, :, n] for n in columns}))
     col_visible = ColumnDataSource(data=dict(columns=columns, counts=dat[0, :, col], snr=snr[0, :, col], saturation=sat[0, :, col]))
-    # col_dict = {}
-    # for fnum in frames:
-    #     for cnum in columns:
-    #         for datacube, pname in zip([dat, snr, sat], ['counts', 'snr', 'saturation']):
-    #             col_dict['{}{}_{}'.format(pname, cnum, fnum)] = datacube[fnum, :, cnum]
-    # col_available = ColumnDataSource(data=col_dict)
+    col_dict = {}
+    for fnum in frames:
+        for cnum in columns:
+            for datacube, pname in zip([dat, snr, sat], ['counts', 'snr', 'saturation']):
+                col_dict['{}{}_{}'.format(pname, cnum, fnum)] = datacube[fnum, :, cnum]
+    col_available = ColumnDataSource(data=col_dict)
 
     # Set the tooltips
     tooltips = [("(x,y)", "($x{int}, $y{int})"), ("ADU/s", "@counts"), ("SNR", "@snr"), ('Saturation', '@saturation')]
@@ -215,7 +215,7 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     y_range = (0, nrows)
     height = int(nrows/2.)+160
     toolbar = 'above'
-    
+
     # Draw the figures
     tabs = []
     for pname, ptype in zip(['Counts', 'SNR', 'Saturation ({}% Full Well)'.format(saturation*100)], ['counts', 'snr', 'saturation']):
@@ -303,9 +303,9 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
         vis['snr'] = [avail['snr'.concat(frame)]];
         vis['saturation'] = [avail['saturation'.concat(frame)]];
 
-        viscol['counts'] = availcol['counts'.concat(col)];
-        viscol['snr'] = availcol['snr'.concat(col)];
-        viscol['saturation'] = availcol['saturation'.concat(col)];
+        viscol['counts'] = availcol['counts'.concat(col, '_', frame)];
+        viscol['snr'] = availcol['snr'.concat(col, '_', frame)];
+        viscol['saturation'] = availcol['saturation'.concat(col, '_', frame)];
 
         visvert['vertical'] = availvert['vertical'.concat(col)];
 
@@ -314,10 +314,6 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
         vert_vis.change.emit();
     """)
 
-        # viscol['counts'] = availcol['counts'.concat(col, '_', frame)];
-        # viscol['snr'] = availcol['snr'.concat(col, '_', frame)];
-        # viscol['saturation'] = availcol['saturation'.concat(col, '_', frame)];
-
     # Add callback to frame slider
     frame_slider.js_on_change('value', callback)
 
@@ -325,79 +321,6 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     column_slider.js_on_change('value', callback)
 
     return column(final, frame_slider, column_slider)
-
-
-def plot_slice(frame, col, **kwargs):
-    """
-    Plot a column of a frame to see the PSF in the cross dispersion direction
-
-    Parameters
-    ----------
-    data: np.ndarray
-        The datacube
-    col: int, sequence
-        The column index(es) to plot
-    """
-    # Transpose data
-    slc = frame.T
-
-    # Turn one column into a list
-    if isinstance(col, int):
-        col = [col]
-
-    # Plot the frame
-    dfig = plot_frame(frame, **kwargs)
-
-    # Make the figure
-    for n, subfig in enumerate(dfig.tabs):
-        fig = figure(width=1000, height=300)
-        for c in col:
-            color = next(utils.COLORS)
-            fig.line(np.arange(slc[c, :].size), slc[c, :], color=color, legend='Column {}'.format(c))
-            vline = Span(location=c, dimension='height', line_color=color, line_width=3)
-            subfig.child.add_layout(vline)
-        fig.xaxis.axis_label = 'Row'
-        fig.yaxis.axis_label = 'Count Rate [ADU/s]'
-        fig.legend.click_policy = 'mute'
-
-        # Replace figure with column in tabbed plot
-        dfig.tabs[n] = column(subfig, fig)
-
-    return dfig
-
-# def plot_slice(frame, col, **kwargs):
-#     """
-#     Plot a column of a frame to see the PSF in the cross dispersion direction
-#
-#     Parameters
-#     ----------
-#     data: np.ndarray
-#         The datacube
-#     col: int, sequence
-#         The column index(es) to plot
-#     """
-#     # Transpose data
-#     slc = frame.T
-#
-#     # Turn one column into a list
-#     if isinstance(col, int):
-#         col = [col]
-#
-#     # Plot the frame
-#     dfig = plot_frame(frame, **kwargs)
-#
-#     # Make the figure
-#     fig = figure(width=1024, height=500)
-#     for c in col:
-#         color = next(utils.COLORS)
-#         fig.line(np.arange(slc[c, :].size), slc[c, :], color=color, legend='Column {}'.format(c))
-#         vline = Span(location=c, dimension='height', line_color=color, line_width=3)
-#         dfig.add_layout(vline)
-#     fig.xaxis.axis_label = 'Row'
-#     fig.yaxis.axis_label = 'Count Rate [ADU/s]'
-#     fig.legend.click_policy = 'mute'
-#
-#     return column(fig, dfig)
 
 
 def plot_ramp(data):
