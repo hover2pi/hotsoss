@@ -10,7 +10,7 @@ import os
 
 from astropy.io import fits
 from bokeh.plotting import figure, show, output_file
-from bokeh.models import ColumnDataSource, HoverTool, LogColorMapper, FixedTicker, BasicTickFormatter, FuncTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider
+from bokeh.models import ColumnDataSource, HoverTool, LogColorMapper, FixedTicker, BasicTickFormatter, FuncTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
 from bokeh.models.widgets import Panel, Tabs
 from bokeh.layouts import gridplot, column
 import numpy as np
@@ -19,7 +19,7 @@ from . import utils
 from . import locate_trace as lt
 
 
-def plot_frame(frame, scale='linear', trace_coeffs=None, saturation=0.8, title=None, wavecal=None):
+def plot_frame(frame, cols=0, scale='linear', trace_coeffs=None, saturation=0.8, title=None, wavecal=None):
     """
     Plot a SOSS frame
 
@@ -135,7 +135,7 @@ def plot_frame(frame, scale='linear', trace_coeffs=None, saturation=0.8, title=N
     return final
 
 
-def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, width=1024, height=300, title=None, wavecal=None):
+def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturation=0.8, width=1024, height=300, title=None, wavecal=None):
     """
     Plot a SOSS frame
 
@@ -159,10 +159,6 @@ def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, 
     # Determine subarray
     nframes, nrows, ncols = data.shape
 
-    # Fix log scale plot values
-    if scale == 'log':
-        data[data < 1.] = 1.
-
     # Get data, snr, and saturation for plotting
     vmin = int(np.nanmin(data[data >= 0]))
     vmax = int(np.nanmax(data[data < np.inf]))
@@ -172,13 +168,34 @@ def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, 
     sat = dat > saturation * fullWell
     sat = sat.astype(int)
 
-    # Wrap the data in two ColumnDataSources
-    frames = range(nframes)
+    # Fix log scale plot values
+    if scale == 'log':
+        dat[dat < 1.] = 1.
+        snr[snr < 1.] = 1.
+
+    # Broadcast the data
+    frames = np.arange(nframes)
+    columns = np.arange(ncols)
+    rows = np.arange(nrows)
+    verticals = np.tile(np.arange(ncols), (nrows, 1)).T
+
+    # Wrap the data in ColumnDataSources
     source_available = ColumnDataSource(data=dict(**{'counts{}'.format(n): dat[n] for n in frames}, **{'snr{}'.format(n): snr[n] for n in frames}, **{'saturation{}'.format(n): sat[n] for n in frames}))
     source_visible = ColumnDataSource(data=dict(counts=[dat[idx]], snr=[snr[idx]], saturation=[sat[idx]]))
+    vertical_available = ColumnDataSource(data=dict(**{'vertical{}'.format(n): vert for n, vert in enumerate(verticals)}))
+    vertical_visible = ColumnDataSource(data=dict(column=rows, vertical=verticals[col]))
+    col_available = ColumnDataSource(data=dict(**{'counts{}'.format(n): dat[0, :, n] for n in columns}, **{'snr{}'.format(n): snr[0, :, n] for n in columns}, **{'saturation{}'.format(n): sat[0, :, n] for n in columns}))
+    col_visible = ColumnDataSource(data=dict(columns=columns, counts=dat[0, :, col], snr=snr[0, :, col], saturation=sat[0, :, col]))
+    # col_dict = {}
+    # for fnum in frames:
+    #     for cnum in columns:
+    #         for datacube, pname in zip([dat, snr, sat], ['counts', 'snr', 'saturation']):
+    #             col_dict['{}{}_{}'.format(pname, cnum, fnum)] = datacube[fnum, :, cnum]
+    # col_available = ColumnDataSource(data=col_dict)
 
     # Set the tooltips
     tooltips = [("(x,y)", "($x{int}, $y{int})"), ("ADU/s", "@counts"), ("SNR", "@snr"), ('Saturation', '@saturation')]
+    col_color = 'blue'
 
     # Add wavelength calibration if possible
     if isinstance(wavecal, np.ndarray):
@@ -205,7 +222,6 @@ def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, 
 
         # Make the figure
         fig_title = '{} - {}'.format(title, pname)
-        fig = figure(x_range=x_range, y_range=y_range, tooltips=tooltips, width=1024, height=height, title=fig_title, toolbar_location=toolbar, toolbar_sticky=True)
 
         # Get the data
         vals = source_visible.data[ptype][0]
@@ -232,9 +248,23 @@ def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, 
         else:
             mapper = LinearColorMapper(palette=color_map, low=vmin, high=vmax)
 
-        # Plot the frame
+        # Plot the image data
+        fig = figure(x_range=x_range, y_range=y_range, tooltips=tooltips, width=1024, height=height, title=fig_title, toolbar_location=toolbar, toolbar_sticky=True)
         fig.image(source=source_visible, image=ptype, x=0, y=0, dw=ncols, dh=nrows, color_mapper=mapper)
+
+        # Plot the line indicating the column
+        fig.line('vertical', 'column', source=vertical_visible, color=col_color, line_width=3)
+
+        # Add the colorbar
         color_bar = ColorBar(color_mapper=mapper, ticker=ticker, formatter=formatter, orientation="horizontal", location=(0, 0))
+        fig.add_layout(color_bar, 'below')
+
+        # Plot the column data
+        col_fig = figure(width=1000, height=300)
+        col_fig.line('columns', ptype, source=col_visible, color=col_color)
+        col_fig.xaxis.axis_label = 'Row'
+        col_fig.yaxis.axis_label = 'Count Rate [ADU/s]'
+        col_fig.y_range = Range1d(np.nanmin(vals), np.nanmax(vals))
 
         # Plot the trace polynomials
         if trace_coeffs is not None:
@@ -244,33 +274,57 @@ def plot_frames(data, idx=0, scale='linear', trace_coeffs=None, saturation=0.8, 
                 Y = np.polyval(coeffs, X)
                 fig.line(X, Y, color='red')
 
-        # Add the colorbar
-        fig.add_layout(color_bar, 'below')
-
         # Add the figure to the tab list
-        tabs.append(Panel(child=fig, title=pname))
+        tabs.append(Panel(child=column(fig, col_fig), title=pname))
 
     # Make the final tabbed figure
     final = Tabs(tabs=tabs)
 
     # Make the frame slider
-    slider = Slider(title='Frame', value=idx, start=0, end=nframes-1, step=1)
+    frame_slider = Slider(title='Frame', value=idx, start=0, end=nframes-1, step=1)
+
+    # Make the column slider
+    column_slider = Slider(title='Column', value=col, start=0, end=ncols-1, step=1)
 
     # CustomJS callback to update the three plots on slider changes
-    callback = CustomJS(args=dict(visible=source_visible, available=source_available, slide=slider), code="""
+    callback = CustomJS(args=dict(visible=source_visible, available=source_available, col_vis=col_visible, col_avail=col_available, vert_vis=vertical_visible, vert_avail=vertical_available, fr_slide=frame_slider, col_slide=column_slider), code="""
         var vis = visible.data;
         var avail = available.data;
-        var frame = slide.value;
-        vis['counts'] = [avail['counts'.concat(frame.toString(10))]];
-        vis['snr'] = [avail['snr'.concat(frame.toString(10))]];
-        vis['saturation'] = [avail['saturation'.concat(frame.toString(10))]];
+        var frame = fr_slide.value.toString(10);
+
+        var viscol = col_vis.data;
+        var availcol = col_avail.data;
+        var col = col_slide.value.toString(10);
+
+        var visvert = vert_vis.data;
+        var availvert = vert_avail.data;
+
+        vis['counts'] = [avail['counts'.concat(frame)]];
+        vis['snr'] = [avail['snr'.concat(frame)]];
+        vis['saturation'] = [avail['saturation'.concat(frame)]];
+
+        viscol['counts'] = availcol['counts'.concat(col)];
+        viscol['snr'] = availcol['snr'.concat(col)];
+        viscol['saturation'] = availcol['saturation'.concat(col)];
+
+        visvert['vertical'] = availvert['vertical'.concat(col)];
+
         visible.change.emit();
+        col_vis.change.emit();
+        vert_vis.change.emit();
     """)
 
-    # Add callback to spectrum slider
-    slider.js_on_change('value', callback)
+        # viscol['counts'] = availcol['counts'.concat(col, '_', frame)];
+        # viscol['snr'] = availcol['snr'.concat(col, '_', frame)];
+        # viscol['saturation'] = availcol['saturation'.concat(col, '_', frame)];
 
-    return column(final, slider)
+    # Add callback to frame slider
+    frame_slider.js_on_change('value', callback)
+
+    # Add callback to column slider
+    column_slider.js_on_change('value', callback)
+
+    return column(final, frame_slider, column_slider)
 
 
 def plot_slice(frame, col, **kwargs):
@@ -295,17 +349,55 @@ def plot_slice(frame, col, **kwargs):
     dfig = plot_frame(frame, **kwargs)
 
     # Make the figure
-    fig = figure(width=1024, height=500)
-    for c in col:
-        color = next(utils.COLORS)
-        fig.line(np.arange(slc[c, :].size), slc[c, :], color=color, legend='Column {}'.format(c))
-        vline = Span(location=c, dimension='height', line_color=color, line_width=3)
-        dfig.add_layout(vline)
-    fig.xaxis.axis_label = 'Row'
-    fig.yaxis.axis_label = 'Count Rate [ADU/s]'
-    fig.legend.click_policy = 'mute'
+    for n, subfig in enumerate(dfig.tabs):
+        fig = figure(width=1000, height=300)
+        for c in col:
+            color = next(utils.COLORS)
+            fig.line(np.arange(slc[c, :].size), slc[c, :], color=color, legend='Column {}'.format(c))
+            vline = Span(location=c, dimension='height', line_color=color, line_width=3)
+            subfig.child.add_layout(vline)
+        fig.xaxis.axis_label = 'Row'
+        fig.yaxis.axis_label = 'Count Rate [ADU/s]'
+        fig.legend.click_policy = 'mute'
 
-    return column(fig, dfig)
+        # Replace figure with column in tabbed plot
+        dfig.tabs[n] = column(subfig, fig)
+
+    return dfig
+
+# def plot_slice(frame, col, **kwargs):
+#     """
+#     Plot a column of a frame to see the PSF in the cross dispersion direction
+#
+#     Parameters
+#     ----------
+#     data: np.ndarray
+#         The datacube
+#     col: int, sequence
+#         The column index(es) to plot
+#     """
+#     # Transpose data
+#     slc = frame.T
+#
+#     # Turn one column into a list
+#     if isinstance(col, int):
+#         col = [col]
+#
+#     # Plot the frame
+#     dfig = plot_frame(frame, **kwargs)
+#
+#     # Make the figure
+#     fig = figure(width=1024, height=500)
+#     for c in col:
+#         color = next(utils.COLORS)
+#         fig.line(np.arange(slc[c, :].size), slc[c, :], color=color, legend='Column {}'.format(c))
+#         vline = Span(location=c, dimension='height', line_color=color, line_width=3)
+#         dfig.add_layout(vline)
+#     fig.xaxis.axis_label = 'Row'
+#     fig.yaxis.axis_label = 'Count Rate [ADU/s]'
+#     fig.legend.click_policy = 'mute'
+#
+#     return column(fig, dfig)
 
 
 def plot_ramp(data):

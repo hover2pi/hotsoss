@@ -21,30 +21,30 @@ class TestPlotFrame(unittest.TestCase):
     def test_linearscale(self):
         """Test that a plot of linear data can be creted"""
         fig = plt.plot_frame(self.frame, scale='linear')
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Tabs'>")
 
     def test_logscale(self):
         """Test that a plot of log scale can be created"""
         fig = plt.plot_frame(self.frame, scale='log')
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Tabs'>")
 
     def test_coeffs(self):
         """Check the traces are drawn"""
         coeffs = lt.trace_polynomial()
         fig = plt.plot_frame(self.frame, scale='log', trace_coeffs=coeffs)
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Tabs'>")
 
     def test_wavecal(self):
         """Check a wavecal array can be supplied"""
         # Order 1 only
         wavecal = np.ones((256, 2048))
         fig = plt.plot_frame(self.frame, wavecal=wavecal)
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Tabs'>")
 
         # All orders
         wavecal = np.ones((3, 256, 2048))
         fig = plt.plot_frame(self.frame, wavecal=wavecal)
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Tabs'>")
 
 
 class TestPlotFrames(unittest.TestCase):
