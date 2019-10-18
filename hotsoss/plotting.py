@@ -135,7 +135,7 @@ def plot_frame(frame, cols=0, scale='linear', trace_coeffs=None, saturation=0.8,
     return final
 
 
-def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturation=0.8, width=1024, height=300, title=None, wavecal=None):
+def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturation=0.8, width=1000, title=None, wavecal=None):
     """
     Plot a SOSS frame
 
@@ -159,9 +159,11 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     # Determine subarray
     nframes, nrows, ncols = data.shape
 
+    # Remove the zeros and infs
+    data[data == 0] = np.nan
+    data[data == np.inf] = np.nan
+
     # Get data, snr, and saturation for plotting
-    vmin = int(np.nanmin(data[data >= 0]))
-    vmax = int(np.nanmax(data[data < np.inf]))
     dat = data
     snr = np.sqrt(data)
     fullWell = 65536.0
@@ -184,7 +186,6 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     source_visible = ColumnDataSource(data=dict(counts=[dat[idx]], snr=[snr[idx]], saturation=[sat[idx]]))
     vertical_available = ColumnDataSource(data=dict(**{'vertical{}'.format(n): vert for n, vert in enumerate(verticals)}))
     vertical_visible = ColumnDataSource(data=dict(column=rows, vertical=verticals[col]))
-    # col_available = ColumnDataSource(data=dict(**{'counts{}'.format(n): dat[0, :, n] for n in columns}, **{'snr{}'.format(n): snr[0, :, n] for n in columns}, **{'saturation{}'.format(n): sat[0, :, n] for n in columns}))
     col_visible = ColumnDataSource(data=dict(columns=columns, counts=dat[0, :, col], snr=snr[0, :, col], saturation=sat[0, :, col]))
     col_dict = {}
     for fnum in frames:
@@ -214,30 +215,27 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     x_range = (0, ncols)
     y_range = (0, nrows)
     height = int(nrows/2.)+160
-    toolbar = 'above'
+    toolbar = 'right'
 
     # Draw the figures
     tabs = []
-    for pname, ptype in zip(['Counts', 'SNR', 'Saturation ({}% Full Well)'.format(saturation*100)], ['counts', 'snr', 'saturation']):
+    for pdata, pname, ptype, ylabel in zip([dat, snr, sat], ['Counts', 'SNR', 'Saturation ({}% Full Well)'.format(saturation*100)], ['counts', 'snr', 'saturation'], ['Count Rate [ADU/s]', 'SNR', 'Saturated']):
 
         # Make the figure
         fig_title = '{} - {}'.format(title, pname)
 
-        # Get the data
-        vals = source_visible.data[ptype][0]
+        # Get min and max
+        vmin = np.nanmin(pdata)
+        vmax = np.nanmax(pdata)
 
         # Saturation plot is different
         if ptype == 'saturation':
-            vmin = 0
-            vmax = 1
             formatter = FuncTickFormatter(code="""return {0: 'Unsaturated', 1: 'Saturated'}[tick]""")
             color_map = ['#404387', '#FDE724']
             ticker = FixedTicker(ticks=[vmin, vmax])
 
         # Counts and SNR are similar plots
         else:
-            vmin = int(np.nanmin(vals[vals >= 0]))
-            vmax = int(np.nanmax(vals[vals < np.inf]))
             formatter = BasicTickFormatter()
             color_map = 'Viridis256'
             ticker = BasicTicker()
@@ -249,7 +247,7 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
             mapper = LinearColorMapper(palette=color_map, low=vmin, high=vmax)
 
         # Plot the image data
-        fig = figure(x_range=x_range, y_range=y_range, tooltips=tooltips, width=1024, height=height, title=fig_title, toolbar_location=toolbar, toolbar_sticky=True)
+        fig = figure(x_range=x_range, y_range=y_range, tooltips=tooltips, width=width, height=height, title=fig_title, toolbar_location=toolbar, toolbar_sticky=True)
         fig.image(source=source_visible, image=ptype, x=0, y=0, dw=ncols, dh=nrows, color_mapper=mapper)
 
         # Plot the line indicating the column
@@ -260,19 +258,18 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
         fig.add_layout(color_bar, 'below')
 
         # Plot the column data
-        col_fig = figure(width=1000, height=300)
-        col_fig.line('columns', ptype, source=col_visible, color=col_color)
+        col_fig = figure(width=width, height=300, toolbar_location=toolbar, toolbar_sticky=True)
+        col_fig.step('columns', ptype, source=col_visible, color=col_color)
         col_fig.xaxis.axis_label = 'Row'
-        col_fig.yaxis.axis_label = 'Count Rate [ADU/s]'
-        col_fig.y_range = Range1d(np.nanmin(vals), np.nanmax(vals))
+        col_fig.yaxis.axis_label = ylabel
+        col_fig.y_range = Range1d(vmin*0.9, vmax*1.1)
+        col_fig.x_range = Range1d(*y_range)
 
         # Plot the trace polynomials
         if trace_coeffs is not None:
-            X = np.linspace(0, 2048, 2048)
-
             for coeffs in trace_coeffs:
-                Y = np.polyval(coeffs, X)
-                fig.line(X, Y, color='red')
+                Y = np.polyval(coeffs, columns)
+                fig.line(columns, Y, color='red')
 
         # Add the figure to the tab list
         tabs.append(Panel(child=column(fig, col_fig), title=pname))
