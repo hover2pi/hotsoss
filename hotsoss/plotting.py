@@ -325,9 +325,8 @@ def plot_ramp(data):
     Plot the total flux on each frame to display the ramp
     """
     fig = figure()
-    dims3 = data.shape[0]*data.shape[1], data.shape[2], data.shape[3]
-    x = range(dims3[0])
-    y = np.sum(data.reshape(dims3), axis=(-1, -2))
+    x = range(len(data))
+    y = np.sum(data, axis=(-1, -2))
     fig.circle(x, y, size=8)
     fig.xaxis.axis_label = 'Group'
     fig.yaxis.axis_label = 'Count Rate [ADU/s]'
@@ -459,18 +458,16 @@ def plot_spectrum(wavelength, flux, fig=None, scale='log', legend=None, ylabel='
     return fig
 
 
-def plot_time_series_spectra(fluxes, wavelength, width=1024, height=300, title=None, **kwargs):
+def plot_time_series_spectra(wavelength, flux, width=1024, height=300, title=None, **kwargs):
     """
     Plot time series 1D spectra as an image
 
     Parameters
     ----------
-    fluxes: array-like
-        The 2D counts or flux
     wavelength: array-like
         The 1D wavelength array
-    scale: str
-        Plot scale, ['linear', 'log']
+    flux: array-like
+        The 2D counts or flux
     width: int
         The width of the plot
     height: int
@@ -534,7 +531,7 @@ def plot_time_series_spectra(fluxes, wavelength, width=1024, height=300, title=N
     lc_fig.line('frames', 'lightcurve', source=sourceY, color='red', line_width=3, line_alpha=0.6)
 
     # Make the lightcurve slider
-    lc_slider = Slider(value=0, start=wmin, end=wmax, step=wavelength[1]-wavelength[0], width=width+40, title="Wavelength [um]", bar_color='red')
+    lc_slider = Slider(value=0, start=wmin, end=wmax, step=wavelength[1]-wavelength[0], width=width, title="Wavelength [um]", bar_color='red')
 
     # ====================================================================
 
