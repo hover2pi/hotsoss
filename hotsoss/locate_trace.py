@@ -337,24 +337,44 @@ def simulate_frame(filt='CLEAR', order_amps=(100, 10), plot=False):
     return frame
 
 
-def trace_polynomial(order=None, evaluate=False):
+def trace_polynomial(subarray='SUBSTRIP256', order=None, evaluate=False, generate=False, poly_order=4):
     """The polynomial that describes the order trace
 
     Parameters
     ----------
+    subarray:str
+        The subarray to use, ['FULL', 'SUBSTRIP256', 'SUBSTRIP96']
     order: int, NoneType
         The order polynomial
     evaluate: bool
         Evaluate the polynomial on [0, 2048]
+    poly_order: int
+        The order polynomail to fit
+    generate: bool
+        Generate new coefficients
 
     Returns
     -------
     sequence
         The y values of the given order across the 2048 pixels
     """
-    # Coefficients to use
-    coeffs = [[1.71164994e-11, -4.72119272e-08, 5.10276801e-05, -5.91535309e-02, 8.30680347e+01],
-              [2.35792131e-13, 2.42999478e-08, 1.03641247e-05, -3.63088657e-02, 9.96766537e+01]]
+    if generate:
+
+        # Get the data
+        file = resource_filename('hotsoss', 'files/soss_wavelength_trace_table1.txt')
+        x1, y1, w1, x2, y2, w2 = np.genfromtxt(file, unpack=True)
+
+        # Fit the polynomails
+        fit1 = np.polyfit(x1, y1, poly_order)
+        fit2 = np.polyfit(x2, y2, poly_order)
+
+        coeffs = [fit1, fit2]
+
+    else:
+
+        # Coefficients to use
+        coeffs = [[1.71164994e-11, -4.72119272e-08, 5.10276801e-05, -5.91535309e-02, 8.30680347e+01],
+                  [2.35792131e-13, 2.42999478e-08, 1.03641247e-05, -3.63088657e-02, 9.96766537e+01]]
 
     # Specify the orders
     if order is None:
