@@ -186,7 +186,7 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     source_visible = ColumnDataSource(data=dict(counts=[dat[idx]], snr=[snr[idx]], saturation=[sat[idx]]))
     vertical_available = ColumnDataSource(data=dict(**{'vertical{}'.format(n): vert for n, vert in enumerate(verticals)}))
     vertical_visible = ColumnDataSource(data=dict(column=rows, vertical=verticals[col]))
-    col_visible = ColumnDataSource(data=dict(columns=columns, counts=dat[0, :, col], snr=snr[0, :, col], saturation=sat[0, :, col]))
+    col_visible = ColumnDataSource(data=dict(columns=rows, counts=dat[0, :, col], snr=snr[0, :, col], saturation=sat[0, :, col]))
     col_dict = {}
     for fnum in frames:
         for cnum in columns:
@@ -334,88 +334,6 @@ def plot_ramp(data):
     return fig
 
 
-# def plot_lightcurve(self, column, time_unit='s', resolution_mult=20, draw=True):
-#     """
-#     Plot a lightcurve for each column index given
-#
-#     Parameters
-#     ----------
-#     column: int, float, sequence
-#         The integer column index(es) or float wavelength(s) in microns
-#         to plot as a light curve
-#     time_unit: string
-#         The string indicator for the units that the self.time array is in
-#         ['s', 'min', 'h', 'd' (default)]
-#     resolution_mult: int
-#         The number of theoretical points to plot for each data point
-#     draw: bool
-#         Render the figure instead of returning it
-#     """
-#     # Check time_units
-#     if time_unit not in ['s', 'min', 'h', 'd']:
-#         raise ValueError("time_unit must be 's', 'min', 'h' or 'd'")
-#
-#     # Get the scaled flux in each column for the last group in
-#     # each integration
-#     flux_cols = np.nansum(self.datacube.reshape(self.dims3)[self.ngrps-1::self.ngrps], axis=1)
-#     flux_cols = flux_cols/np.nanmax(flux_cols, axis=1)[:, None]
-#
-#     # Make it into an array
-#     if isinstance(column, (int, float)):
-#         column = [column]
-#
-#     # Make the figure
-#     lc = figure()
-#
-#     for kcol, col in enumerate(column):
-#
-#         color = next(utils.COLORS)
-#
-#         # If it is an index
-#         if isinstance(col, int):
-#             lightcurve = flux_cols[:, col]
-#             label = 'Column {}'.format(col)
-#
-#         # Or assumed to be a wavelength in microns
-#         elif isinstance(col, float):
-#             waves = np.mean(self.wave[0], axis=0)
-#             lightcurve = [np.interp(col, waves, flux_col) for flux_col in flux_cols]
-#             label = '{} um'.format(col)
-#
-#         else:
-#             print('Please enter an index, astropy quantity, or array thereof.')
-#             return
-#
-#         # Plot the theoretical light curve
-#         if str(type(self.tmodel)) == "<class 'batman.transitmodel.TransitModel'>":
-#
-#             # Make time axis and convert to desired units
-#             time = np.linspace(min(self.time), max(self.time), self.ngrps*self.nints*resolution_mult)
-#             time = time*q.d.to(time_unit)
-#
-#             tmodel = batman.TransitModel(self.tmodel, time)
-#             tmodel.rp = self.rp[col]
-#             theory = tmodel.light_curve(tmodel)
-#             theory *= max(lightcurve)/max(theory)
-#
-#             lc.line(time, theory, legend=label+' model', color=color, alpha=0.1)
-#
-#         # Convert datetime
-#         data_time = self.time[self.ngrps-1::self.ngrps].copy()
-#         data_time*q.d.to(time_unit)
-#
-#         # Plot the lightcurve
-#         lc.circle(data_time, lightcurve, legend=label, color=color)
-#
-#     lc.xaxis.axis_label = 'Time [{}]'.format(time_unit)
-#     lc.yaxis.axis_label = 'Transit Depth'
-#
-#     if draw:
-#         show(lc)
-#     else:
-#         return lc
-
-
 def plot_spectrum(wavelength, flux, fig=None, scale='log', legend=None, ylabel='Flux Density', xlabel='Wavelength [um]', width=1024, height=500, **kwargs):
     """
     Plot a generic spectrum
@@ -483,15 +401,15 @@ def plot_time_series_spectra(wavelength, flux, width=1024, height=300, title=Non
     output_file('time_series_spectra.html')
 
     # Get plot params
-    dh, dw = fluxes.shape
-    fmin = np.nanmin(fluxes)
-    fmax = np.nanmax(fluxes)
+    dh, dw = flux.shape
+    fmin = np.nanmin(flux)
+    fmax = np.nanmax(flux)
     wmin = np.nanmin(wavelength)
     wmax = np.nanmax(wavelength)
-    lightcurves = fluxes.T
+    lightcurves = flux.T
 
     # Set the source data
-    sourceX = ColumnDataSource(data=dict(y=np.zeros(dw), wavelength=wavelength, flux=fluxes[0], **{'flux{}'.format(n): flux for n, flux in enumerate(fluxes)}))
+    sourceX = ColumnDataSource(data=dict(y=np.zeros(dw), wavelength=wavelength, flux=flux[0], **{'flux{}'.format(n): flux for n, flux in enumerate(flux)}))
     sourceY = ColumnDataSource(data=dict(x=np.zeros(dh), frames=np.arange(dh), lightcurve=lightcurves[0], **{'lightcurve{}'.format(round(w,3)): lc for w, lc in zip(wavelength, lightcurves)}))
 
     # ====================================================================
@@ -500,9 +418,9 @@ def plot_time_series_spectra(wavelength, flux, width=1024, height=300, title=Non
     spec_fig = figure(x_range=(wmin, wmax), y_range=(0, dh), x_axis_label='Wavelength', y_axis_label='Frame', width=width, height=height, title=title, toolbar_location='above', toolbar_sticky=True)
 
     # Plot the image
-    fluxes[fluxes < 1.] = 1.
+    flux[flux < 1.] = 1.
     color_mapper = LogColorMapper(palette="Viridis256", low=fmin, high=fmax)
-    spec_fig.image(image=[fluxes], x=wmin, y=0, dw=wmax, dh=dh, color_mapper=color_mapper, alpha=0.8)
+    spec_fig.image(image=[flux], x=wmin, y=0, dw=wmax, dh=dh, color_mapper=color_mapper, alpha=0.8)
     color_bar = ColorBar(color_mapper=color_mapper, ticker=LogTicker(), orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
 
     # Add current lightcurve line to plot

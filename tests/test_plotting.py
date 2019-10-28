@@ -88,7 +88,7 @@ class TestPlotRamp(unittest.TestCase):
     def setUp(self):
         """Test instance setup"""
         # Make frames for testing
-        self.frames = np.ones((2, 2, 256, 2048))
+        self.frames = np.ones((4, 256, 2048))
 
     def test_ramp(self):
         """Test that a ramp plot can be created"""
@@ -126,5 +126,5 @@ class TestPlotTimeSeriesSpectra(unittest.TestCase):
     def test_tso(self):
         """Test that a spectrum plot can be created"""
         # No figure
-        fig = plt.plot_time_series_spectra(self.flux, self.wave)
+        fig = plt.plot_time_series_spectra(self.wave, self.flux)
         self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Column'>")

@@ -7,3 +7,4 @@ __email__ = 'jfilippazzo@stsci.edu'
 __version__ = '0.1.0'
 
 from .plotting import *
+from .utils import STAR_DATA, PLANET_DATA
