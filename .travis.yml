@@ -7,6 +7,7 @@ python:
 
 install:
   - pip install -r requirements_dev.txt
+  - pip install batman-package
   - pip install -e .
   - pip install pytest pytest-cov coveralls
 

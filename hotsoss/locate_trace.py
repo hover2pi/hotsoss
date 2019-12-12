@@ -299,7 +299,6 @@ def simulate_frame(filt='CLEAR', order_amps=(100, 10), plot=False):
         The amplitudes for each order
     """
     # Make empty frame
-    idx = 500
     nrows = 256
     frame = np.zeros((2048, nrows))
 
