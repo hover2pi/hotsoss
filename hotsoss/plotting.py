@@ -160,7 +160,7 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     nframes, nrows, ncols = data.shape
 
     # Remove the zeros and infs
-    data[data == 0] = np.nan
+    # data[data == 0] = np.nan
     data[data == np.inf] = np.nan
 
     # Get data, snr, and saturation for plotting
@@ -277,14 +277,8 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     # Make the final tabbed figure
     final = Tabs(tabs=tabs)
 
-    # Make the frame slider
-    frame_slider = Slider(title='Frame', value=idx, start=0, end=nframes-1, step=1)
-
-    # Make the column slider
-    column_slider = Slider(title='Column', value=col, start=0, end=ncols-1, step=1)
-
-    # CustomJS callback to update the three plots on slider changes
-    callback = CustomJS(args=dict(visible=source_visible, available=source_available, col_vis=col_visible, col_avail=col_available, vert_vis=vertical_visible, vert_avail=vertical_available, fr_slide=frame_slider, col_slide=column_slider), code="""
+    # Write JS code
+    code ="""
         var vis = visible.data;
         var avail = available.data;
         var frame = fr_slide.value.toString(10);
@@ -309,15 +303,31 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
         visible.change.emit();
         col_vis.change.emit();
         vert_vis.change.emit();
-    """)
+    """
 
-    # Add callback to frame slider
-    frame_slider.js_on_change('value', callback)
+    # Make the column slider
+    column_slider = Slider(title='Column', value=col, start=0, end=ncols-1, step=1)
+
+    # Make the frame slider
+    if nframes-1 > 0:
+        frame_slider = Slider(title='Frame', value=idx, start=0, end=nframes-1, step=1)
+    else:
+        frame_slider = None
+        code = code.replace('fr_slide.value.toString(10);', '0')
+
+    # CustomJS callback to update the three plots on slider changes
+    callback = CustomJS(args=dict(visible=source_visible, available=source_available, col_vis=col_visible, col_avail=col_available, vert_vis=vertical_visible, vert_avail=vertical_available, fr_slide=frame_slider, col_slide=column_slider), code=code)
 
     # Add callback to column slider
     column_slider.js_on_change('value', callback)
 
-    return column(final, frame_slider, column_slider)
+    # Add callback to frame slider
+    if frame_slider is not None:
+        frame_slider.js_on_change('value', callback)
+        return column(final, frame_slider, column_slider)
+
+    else:
+        return column(final, column_slider)
 
 
 def plot_ramp(data):

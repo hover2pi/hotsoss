@@ -54,6 +54,12 @@ class TestPlotFrames(unittest.TestCase):
         # Make frame for testing
         self.frames = np.ones((100, 256, 2048))
 
+    def test_single_frame(self):
+        """Test edge case of one frame"""
+        frames = self.frames[:1, :, :]
+        fig = plt.plot_frames(self.frames, scale='linear')
+        self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Column'>")
+
     def test_linearscale(self):
         """Test that a plot of linear data can be creted"""
         fig = plt.plot_frames(self.frames, scale='linear')
