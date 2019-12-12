@@ -52,7 +52,7 @@ class TestPlotFrames(unittest.TestCase):
     def setUp(self):
         """Test instance setup"""
         # Make frame for testing
-        self.frames = np.ones((100, 256, 2048))
+        self.frames = np.ones((4, 256, 2048))
 
     def test_single_frame(self):
         """Test edge case of one frame"""

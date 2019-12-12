@@ -159,8 +159,7 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     # Determine subarray
     nframes, nrows, ncols = data.shape
 
-    # Remove the zeros and infs
-    # data[data == 0] = np.nan
+    # Remove infs
     data[data == np.inf] = np.nan
 
     # Get data, snr, and saturation for plotting
