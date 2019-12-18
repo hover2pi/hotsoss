@@ -9,7 +9,7 @@ from pkg_resources import resource_filename
 import os
 
 from astropy.io import fits
-from bokeh.plotting import figure, show, output_file
+from bokeh.plotting import figure, show
 from bokeh.models import ColumnDataSource, HoverTool, LogColorMapper, FixedTicker, BasicTickFormatter, FuncTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
 from bokeh.models.widgets import Panel, Tabs
 from bokeh.layouts import gridplot, column
@@ -154,8 +154,6 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     wavecal: np.ndarray
         A wavelength calibration map for each pixel
     """
-    output_file('soss_frames.html')
-
     # Determine subarray
     nframes, nrows, ncols = data.shape
 
@@ -407,8 +405,6 @@ def plot_time_series_spectra(wavelength, flux, width=1024, height=300, title=Non
     bokeh.plotting.figure.Figure
         The figure
     """
-    output_file('time_series_spectra.html')
-
     # Get plot params
     dh, dw = flux.shape
     fmin = np.nanmin(flux)
