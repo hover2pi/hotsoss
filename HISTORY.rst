@@ -12,3 +12,8 @@ History
 ------------------
 
 * Added interactive plots.
+
+0.1.6 (2020-01-22)
+------------------
+
+* Updated TSO plot to highlight active data in subplots.
