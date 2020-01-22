@@ -383,16 +383,22 @@ def plot_spectrum(wavelength, flux, fig=None, scale='log', legend=None, ylabel='
     return fig
 
 
-def plot_time_series_spectra(wavelength, flux, width=1024, height=300, title=None, **kwargs):
+def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', ylabel='Frame', width=1024, height=300, title=None, **kwargs):
     """
     Plot time series 1D spectra as an image
 
     Parameters
     ----------
-    wavelength: array-like
-        The 1D wavelength array
     flux: array-like
         The 2D counts or flux
+    wavelength: sequence (optional)
+        The 1D wavelength array
+    time: sequence (optional)
+        The 1D time array
+    xlabel: str
+        The label for the data x-axis
+    ylabel: str
+        The label for the data y-axis
     width: int
         The width of the plot
     height: int
@@ -405,79 +411,122 @@ def plot_time_series_spectra(wavelength, flux, width=1024, height=300, title=Non
     bokeh.plotting.figure.Figure
         The figure
     """
+    # Check that flux is 2D
+    if not flux.ndim == 2:
+        raise ValueError("{}: 'flux' must be a 2D array.".format(flux.shape))
+
+    # Copy flux array
+    flx = copy.copy(flux)
+
     # Get plot params
-    dh, dw = flux.shape
-    fmin = np.nanmin(flux)
-    fmax = np.nanmax(flux)
-    wmin = np.nanmin(wavelength)
-    wmax = np.nanmax(wavelength)
-    lightcurves = flux.T
+    dh, dw = flx.shape
+    fmin = np.nanmin(flx)
+    fmax = np.nanmax(flx)
+    wmin, wmax = 0, dw
+    tmin, tmax = 0, dh
+    lightcurves = flx.T
+
+    # Make sure time array is correct length
+    if time is not None:
+        if len(time) != dh:
+            raise ValueError("{} != {}: 'time' array must be the same length as 'flux' cube.".format(len(time), flux.shape[0]))
+
+    # Make sure wavelength array is correct length
+    if wavelength is not None:
+        if len(wavelength) != dw:
+            raise ValueError("{} != {}: 'wavelength' array must be the same depth as 'flux' cube.".format(len(wavelength), flux.shape[1]))
+
+    # Major tick labels
+    waxis = np.arange(wmin, wmax)
+    wstart, wskip = 128, 256
+    taxis = np.arange(tmin, tmax)
+    tstart, tskip = 1, max(4, min(tmax//2, 10))
 
     # Set the source data
-    sourceX = ColumnDataSource(data=dict(y=np.zeros(dw), wavelength=wavelength, flux=flux[0], **{'flux{}'.format(n): flux for n, flux in enumerate(flux)}))
-    sourceY = ColumnDataSource(data=dict(x=np.zeros(dh), frames=np.arange(dh), lightcurve=lightcurves[0], **{'lightcurve{}'.format(round(w,3)): lc for w, lc in zip(wavelength, lightcurves)}))
+    sourceX = ColumnDataSource(data=dict(wavelength=waxis, flux=flx[0], **{'flux{}'.format(n): fx for n, fx in enumerate(flx)}))
+    sourceY = ColumnDataSource(data=dict(time=taxis, lightcurve=lightcurves[0], **{'lightcurve{}'.format(n): lc for n, lc in enumerate(lightcurves)}))
+    sourceZ = ColumnDataSource(data=dict(x=[0.5], y=[0.5]))
+
+    # Set the tools
+    tools =  "pan,hover,wheel_zoom,box_zoom,reset"
 
     # ====================================================================
 
     # Make the 2D spectra figure
-    spec_fig = figure(x_range=(wmin, wmax), y_range=(0, dh), x_axis_label='Wavelength', y_axis_label='Frame', width=width, height=height, title=title, toolbar_location='above', toolbar_sticky=True)
+    spec_fig = figure(x_range=(wmin, wmax), y_range=(tmin, tmax), x_axis_label=xlabel, y_axis_label=ylabel, plot_width=width, plot_height=height, title=title, tools=tools, toolbar_location='above', toolbar_sticky=True, match_aspect=True)
 
     # Plot the image
-    flux[flux < 1.] = 1.
+    flx[flx < 1.] = 1.
     color_mapper = LogColorMapper(palette="Viridis256", low=fmin, high=fmax)
-    spec_fig.image(image=[flux], x=wmin, y=0, dw=wmax, dh=dh, color_mapper=color_mapper, alpha=0.8)
+    spec_fig.image(image=[flx], x=wmin, y=tmin, dw=wmax, dh=tmax, color_mapper=color_mapper, alpha=0.8)
     color_bar = ColorBar(color_mapper=color_mapper, ticker=LogTicker(), orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
 
     # Add current lightcurve line to plot
-    spec_fig.line(x='x', y='frames', source=sourceY, color='red', line_width=3)
+    spec_fig.vbar(x='x', width=1, top=tmax, source=sourceZ, color='red', alpha=0.3)
 
     # Add current spectrum line to plot
-    spec_fig.line(x='wavelength', y='y', source=sourceX, color='blue', line_width=3)
+    spec_fig.hbar(y='y', height=1, right=wmax, source=sourceZ, color='blue', alpha=0.3)
+
+    # Change y tick labels
+    if time is not None:
+        spec_fig.yaxis.ticker = taxis[tstart::tskip]
+        spec_fig.yaxis.major_label_overrides = {int(n): '{:.2f}'.format(t) for n, t in zip(taxis[tstart::tskip], time[tstart::tskip])}
+
+    # Change x tick labels
+    if wavelength is not None:
+        spec_fig.xaxis.ticker = waxis[wstart::wskip]
+        spec_fig.xaxis.major_label_overrides = {int(n): '{:.3f}'.format(w) for n, w in zip(waxis[wstart::wskip], wavelength[wstart::wskip])}
 
     # ====================================================================
 
     # Make the 1D spectrum figure
-    sp_fig = figure(x_range=(wmin, wmax), y_range=(fmin, fmax), width=width, height=height, x_axis_label='Wavelength', y_axis_label='Flux Density', title='Spectrum')
+    sp_fig = figure(x_range=(wmin, wmax), y_range=(fmin, fmax), width=width, height=height, x_axis_label=xlabel, y_axis_label='Flux Density', title='Spectrum')
 
     # Draw the spectrum
-    sp_fig.line('wavelength', 'flux', source=sourceX, color='blue', line_width=3, line_alpha=0.6)
+    sp_fig.step('wavelength', 'flux', source=sourceX, color='blue', line_width=3, line_alpha=0.6, mode='center')
+
+    # Change x tick labels
+    if wavelength is not None:
+        sp_fig.xaxis.ticker = waxis[wstart::wskip]
+        sp_fig.xaxis.major_label_overrides = {int(n): '{:.3f}'.format(w) for n, w in zip(waxis[wstart::wskip], wavelength[wstart::wskip])}
 
     # Make the spectrum slider
-    sp_slider = Slider(value=0, start=0, end=dh-1, step=1, width=30, title="Frame", orientation='vertical', direction='rtl', bar_color='blue')
+    sp_slider = Slider(value=0, start=tmin, end=tmax-1, step=1, width=30, title=ylabel, orientation='vertical', direction='rtl', bar_color='blue')
 
     # ====================================================================
 
     # Make the 1D lightcurve figure
-    lc_fig = figure(x_range=(0, dh), y_range=(0, dw), width=width, height=height, x_axis_label='Frame', y_axis_label='Flux Density', title='Lightcurve')
+    lc_fig = figure(x_range=(tmin, tmax), y_range=(fmin, fmax), width=width, height=height, x_axis_label=ylabel, y_axis_label='Flux Density', title='Lightcurve')
 
     # Draw the lightcurve
-    lc_fig.line('frames', 'lightcurve', source=sourceY, color='red', line_width=3, line_alpha=0.6)
+    lc_fig.step('time', 'lightcurve', source=sourceY, color='red', line_width=3, line_alpha=0.6, mode='center')
+
+    # Change x tick labels
+    if time is not None:
+        lc_fig.xaxis.ticker = taxis[tstart::tskip]
+        lc_fig.xaxis.major_label_overrides = {int(n): '{:.2f}'.format(t) for n, t in zip(taxis[tstart::tskip], time[tstart::tskip])}
 
     # Make the lightcurve slider
-    lc_slider = Slider(value=0, start=wmin, end=wmax, step=wavelength[1]-wavelength[0], width=width, title="Wavelength [um]", bar_color='red')
+    lc_slider = Slider(value=0, start=wmin, end=wmax-1, step=1, width=width, title=xlabel, bar_color='red')
 
     # ====================================================================
 
     # CustomJS callback to update the three plots on slider changes
-    callback = CustomJS(args=dict(sourcex=sourceX, sourcey=sourceY, sp_slide=sp_slider, lc_slide=lc_slider), code="""
+    callback = CustomJS(args=dict(sourcex=sourceX, sourcey=sourceY, sourcez=sourceZ, sp_slide=sp_slider, lc_slide=lc_slider), code="""
         var datax = sourcex.data;
         var datay = sourcey.data;
+        var dataz = sourcez.data;
         var sp = sp_slide.value;
         var lc = lc_slide.value;
         var wavelength = datax['wavelength'];
-        var frames = datay['frames'];
-        var x = datay['x'];
-        var y = datax['y'];
+        var time = datay['time'];
         datax['flux'] = datax['flux'.concat(sp.toString(10))];
-        datay['lightcurve'] = datay['lightcurve'.concat(lc.toFixed(3).toString(10))];
-        for (var xi = 0; xi < x.length; xi++) {
-            x[xi] = lc.toFixed(3);
-        };
-        for (var yi = 0; yi < y.length; yi++) {
-            y[yi] = sp;
-        };
+        datay['lightcurve'] = datay['lightcurve'.concat(lc.toString(10))];
+        dataz['x'] = [lc+0.5];
+        dataz['y'] = [sp+0.5];
         sourcex.change.emit();
         sourcey.change.emit();
+        sourcez.change.emit();
     """)
 
     # Add callback to spectrum slider
