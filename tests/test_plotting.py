@@ -132,5 +132,5 @@ class TestPlotTimeSeriesSpectra(unittest.TestCase):
     def test_tso(self):
         """Test that a spectrum plot can be created"""
         # No figure
-        fig = plt.plot_time_series_spectra(self.wave, self.flux)
+        fig = plt.plot_time_series_spectra(self.flux, wavelength=self.wave)
         self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Column'>")
