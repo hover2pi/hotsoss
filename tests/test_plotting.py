@@ -128,9 +128,23 @@ class TestPlotTimeSeriesSpectra(unittest.TestCase):
         # Make spectrum for testing
         self.wave = np.linspace(1, 2, 2048)
         self.flux = np.random.normal(loc=1000., size=(100, 2048), scale=10.)
+        self.time = np.arange(100)
 
     def test_tso(self):
         """Test that a spectrum plot can be created"""
-        # No figure
-        fig = plt.plot_time_series_spectra(self.flux, wavelength=self.wave)
+        # Working plot
+        fig = plt.plot_time_series_spectra(self.flux, wavelength=self.wave, time=self.time)
         self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Column'>")
+
+    def test_bad_input(self):
+        """Test the function fails properly"""
+        # Bad flux
+        self.assertRaises(ValueError, plt.plot_time_series_spectra, np.ones((2, 3, 4, 5)))
+
+        # Bad wavelength
+        kwargs = {'flux': np.ones((2, 2048)), 'wavelength': np.arange(35)}
+        self.assertRaises(ValueError, plt.plot_time_series_spectra, **kwargs)
+
+        # Bad time
+        kwargs = {'flux': np.ones((2, 2048)), 'time': np.arange(35)}
+        self.assertRaises(ValueError, plt.plot_time_series_spectra, **kwargs)
