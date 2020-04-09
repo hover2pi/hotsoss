@@ -488,7 +488,7 @@ def wavelength_bins(save=False, subarray='SUBSTRIP256', wavecal_file=None):
 
         # Load from file
         try:
-            signal_pixels = np.load(file)
+            signal_pixels = np.load(file, allow_pickle=True)
         except FileNotFoundError:
             print("No wavelength bin file. Generating one now...")
             signal_pixels = wavelength_bins(save=True)
