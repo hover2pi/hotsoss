@@ -19,7 +19,7 @@ from . import utils
 from . import locate_trace as lt
 
 
-def plot_frame(frame, cols=0, scale='linear', trace_coeffs=None, saturation=0.8, title=None, wavecal=None):
+def plot_frame(frame, cols=None, scale='linear', trace_coeffs=None, saturation=0.8, title=None, wavecal=None):
     """
     Plot a SOSS frame
 
@@ -27,6 +27,8 @@ def plot_frame(frame, cols=0, scale='linear', trace_coeffs=None, saturation=0.8,
     ----------
     frame: sequence
         The 2D frame to plot
+    cols: int, list, tuple
+        The 1D column(s) to plot
     scale: str
         Plot scale, ['linear', 'log']
     trace_coeffs: sequence
@@ -119,15 +121,45 @@ def plot_frame(frame, cols=0, scale='linear', trace_coeffs=None, saturation=0.8,
         if trace_coeffs is not None:
             X = np.linspace(0, 2048, 2048)
 
+            # Check number of traces
+            if np.array(trace_coeffs).ndim == 1:
+                trace_coeffs = [trace_coeffs]
+
             for coeffs in trace_coeffs:
                 Y = np.polyval(coeffs, X)
-                fig.line(X, Y, color='red')
+                fig.line(X, Y, color='red', line_dash='dashed')
 
         # Add the colorbar
         fig.add_layout(color_bar, 'below')
 
-        # Add the figure to the tab list
-        tabs.append(Panel(child=fig, title=pname))
+        # Plot the column data
+        col_fig = None
+        col_colors = ['blue', 'green', 'purple', 'cyan', 'orange']
+        if cols is not None:
+            col_fig = figure(width=1024, height=300, toolbar_location=toolbar, toolbar_sticky=True)
+
+            for n, col in enumerate(cols):
+                col_color = col_colors[n]
+                col_fig.step(np.arange(256), vals[:, col], color=col_color, legend='Col {}'.format(col))
+                col_fig.y_range = Range1d(vmin * 0.9, vmax * 1.1)
+                col_fig.x_range = Range1d(*y_range)
+
+                # Add line to image
+                fig.line([col, col], [0, 256], color=col_color, line_width=3)
+
+            # Update click policy
+            col_fig.legend.click_policy = 'hide'
+
+
+        if col_fig is not None:
+
+            # Add the figure to the tab list
+            tabs.append(Panel(child=column([fig, col_fig]), title=pname))
+
+        else:
+
+            # No column object
+            tabs.append(Panel(child=fig, title=pname))
 
     # Make the final tabbed figure
     final = Tabs(tabs=tabs)
