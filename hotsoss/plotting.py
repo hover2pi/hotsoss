@@ -136,6 +136,12 @@ def plot_frame(frame, cols=None, scale='linear', trace_coeffs=None, saturation=0
         col_fig = None
         col_colors = ['blue', 'green', 'purple', 'cyan', 'orange']
         if cols is not None:
+
+            # Make sure it's iterable
+            if isinstance(cols, int):
+                cols = [cols]
+
+            # Initialize column figure
             col_fig = figure(width=1024, height=300, toolbar_location=toolbar, toolbar_sticky=True)
 
             for n, col in enumerate(cols):
