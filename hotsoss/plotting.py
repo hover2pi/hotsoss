@@ -10,7 +10,7 @@ import os
 
 from astropy.io import fits
 from bokeh.plotting import figure, show
-from bokeh.models import ColumnDataSource, HoverTool, LogColorMapper, FixedTicker, BasicTickFormatter, FuncTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
+from bokeh.models import ColumnDataSource, HoverTool, CustomJSHover, LogColorMapper, FixedTicker, BasicTickFormatter, FuncTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
 from bokeh.models.widgets import Panel, Tabs
 from bokeh.layouts import gridplot, column
 import numpy as np
@@ -19,7 +19,7 @@ from . import utils
 from . import locate_trace as lt
 
 
-def plot_frame(frame, cols=0, scale='linear', trace_coeffs=None, saturation=0.8, title=None, wavecal=None):
+def plot_frame(frame, cols=None, scale='linear', trace_coeffs=None, saturation=0.8, title=None, wavecal=None):
     """
     Plot a SOSS frame
 
@@ -27,6 +27,8 @@ def plot_frame(frame, cols=0, scale='linear', trace_coeffs=None, saturation=0.8,
     ----------
     frame: sequence
         The 2D frame to plot
+    cols: int, list, tuple
+        The 1D column(s) to plot
     scale: str
         Plot scale, ['linear', 'log']
     trace_coeffs: sequence
@@ -119,15 +121,51 @@ def plot_frame(frame, cols=0, scale='linear', trace_coeffs=None, saturation=0.8,
         if trace_coeffs is not None:
             X = np.linspace(0, 2048, 2048)
 
+            # Check number of traces
+            if np.array(trace_coeffs).ndim == 1:
+                trace_coeffs = [trace_coeffs]
+
             for coeffs in trace_coeffs:
                 Y = np.polyval(coeffs, X)
-                fig.line(X, Y, color='red')
+                fig.line(X, Y, color='red', line_dash='dashed')
 
         # Add the colorbar
         fig.add_layout(color_bar, 'below')
 
-        # Add the figure to the tab list
-        tabs.append(Panel(child=fig, title=pname))
+        # Plot the column data
+        col_fig = None
+        col_colors = ['blue', 'green', 'purple', 'cyan', 'orange']
+        if cols is not None:
+
+            # Make sure it's iterable
+            if isinstance(cols, int):
+                cols = [cols]
+
+            # Initialize column figure
+            col_fig = figure(width=1024, height=300, toolbar_location=toolbar, toolbar_sticky=True)
+
+            for n, col in enumerate(cols):
+                col_color = col_colors[n]
+                col_fig.step(np.arange(256), vals[:, col], color=col_color, legend='Col {}'.format(col))
+                col_fig.y_range = Range1d(vmin * 0.9, vmax * 1.1)
+                col_fig.x_range = Range1d(*y_range)
+
+                # Add line to image
+                fig.line([col, col], [0, 256], color=col_color, line_width=3)
+
+            # Update click policy
+            col_fig.legend.click_policy = 'hide'
+
+
+        if col_fig is not None:
+
+            # Add the figure to the tab list
+            tabs.append(Panel(child=column([fig, col_fig]), title=pname))
+
+        else:
+
+            # No column object
+            tabs.append(Panel(child=fig, title=pname))
 
     # Make the final tabbed figure
     final = Tabs(tabs=tabs)
@@ -443,22 +481,22 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
     tstart, tskip = 1, max(4, min(tmax//2, 10))
 
     # Set the source data
+    wave_data = np.array([wavelength if wavelength is not None else np.arange(dw)]*flx.shape[0])
+    time_data = np.array([time if time is not None else np.arange(dh)]*flx.shape[1]).T
+    sourceW = ColumnDataSource(data=dict(flux=[flx], wavelength=[wave_data], time=[time_data]))
     sourceX = ColumnDataSource(data=dict(wavelength=waxis, flux=flx[0], **{'flux{}'.format(n): fx for n, fx in enumerate(flx)}))
     sourceY = ColumnDataSource(data=dict(time=taxis, lightcurve=lightcurves[0], **{'lightcurve{}'.format(n): lc for n, lc in enumerate(lightcurves)}))
     sourceZ = ColumnDataSource(data=dict(x=[0.5], y=[0.5]))
 
-    # Set the tools
-    tools =  "pan,hover,wheel_zoom,box_zoom,reset"
-
     # ====================================================================
 
     # Make the 2D spectra figure
-    spec_fig = figure(x_range=(wmin, wmax), y_range=(tmin, tmax), x_axis_label=xlabel, y_axis_label=ylabel, plot_width=width, plot_height=height, title=title, tools=tools, toolbar_location='above', toolbar_sticky=True, match_aspect=True)
+    spec_fig = figure(x_range=(wmin, wmax), y_range=(tmin, tmax), x_axis_label=xlabel, y_axis_label=ylabel,
+                      plot_width=width, plot_height=height, title=title, tools="")
 
     # Plot the image
-    flx[flx < 1.] = 1.
     color_mapper = LogColorMapper(palette="Viridis256", low=fmin, high=fmax)
-    spec_fig.image(image=[flx], x=wmin, y=tmin, dw=wmax, dh=tmax, color_mapper=color_mapper, alpha=0.8)
+    spec_fig.image(image='flux', x=wmin, y=tmin, dw=wmax, dh=tmax, color_mapper=color_mapper, alpha=0.8, name='img', source=sourceW)
     color_bar = ColorBar(color_mapper=color_mapper, ticker=LogTicker(), orientation="horizontal", label_standoff=12, border_line_color=None, location=(0, 0))
 
     # Add current lightcurve line to plot
@@ -466,6 +504,10 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
 
     # Add current spectrum line to plot
     spec_fig.hbar(y='y', height=1, right=wmax, source=sourceZ, color='blue', alpha=0.3)
+
+    # Set the tooltips
+    spec_tt = HoverTool(names=["img"], tooltips=[("(x,y)", "($x{int}, $y{int})"), ("Flux", "@flux"), ('Wavelength', '@wavelength'), ('Time', '@time{0.00000}')])
+    spec_fig.add_tools(spec_tt)
 
     # Change y tick labels
     if time is not None:
@@ -477,13 +519,22 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
         spec_fig.xaxis.ticker = waxis[wstart::wskip]
         spec_fig.xaxis.major_label_overrides = {int(n): '{:.3f}'.format(w) for n, w in zip(waxis[wstart::wskip], wavelength[wstart::wskip])}
 
+    # Remove grid lines
+    spec_fig.xgrid.grid_line_color = None
+    spec_fig.ygrid.grid_line_color = None
+
     # ====================================================================
 
     # Make the 1D spectrum figure
-    sp_fig = figure(x_range=(wmin, wmax), y_range=(fmin, fmax), width=width, height=height, x_axis_label=xlabel, y_axis_label='Flux Density', title='Spectrum')
+    sp_fig = figure(x_range=(wmin, wmax), y_range=(fmin, fmax), width=width, height=height,
+                    x_axis_label=xlabel, y_axis_label='Flux Density', title='Spectrum', tools="")
 
     # Draw the spectrum
-    sp_fig.step('wavelength', 'flux', source=sourceX, color='blue', line_width=3, line_alpha=0.6, mode='center')
+    sp_fig.step('wavelength', 'flux', source=sourceX, color='blue', line_width=3, line_alpha=0.6, mode='center', name='wf')
+
+    # Set the tooltips
+    sp_tt = HoverTool(names=['wf'], tooltips=[("Flux", "@flux"), ('Wavelength', '@wavelength')], mode='vline')
+    sp_fig.add_tools(sp_tt)
 
     # Change x tick labels
     if wavelength is not None:
@@ -496,10 +547,15 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
     # ====================================================================
 
     # Make the 1D lightcurve figure
-    lc_fig = figure(x_range=(tmin, tmax), y_range=(fmin, fmax), width=width, height=height, x_axis_label=ylabel, y_axis_label='Flux Density', title='Lightcurve')
+    lc_fig = figure(x_range=(tmin, tmax), y_range=(fmin, fmax), width=width, height=height,
+                    x_axis_label=ylabel, y_axis_label='Flux Density', title='Lightcurve', tools="")
 
     # Draw the lightcurve
-    lc_fig.step('time', 'lightcurve', source=sourceY, color='red', line_width=3, line_alpha=0.6, mode='center')
+    lc_fig.step('time', 'lightcurve', source=sourceY, color='red', line_width=3, line_alpha=0.6, mode='center', name='tl')
+
+    # Set the tooltips
+    lc_tt = HoverTool(names=['tl'], tooltips=[("Time", "@time"), ('Flux', '@lightcurve')], mode='vline')
+    lc_fig.tools.append(lc_tt)
 
     # Change x tick labels
     if time is not None:

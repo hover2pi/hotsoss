@@ -46,6 +46,16 @@ class TestPlotFrame(unittest.TestCase):
         fig = plt.plot_frame(self.frame, wavecal=wavecal)
         self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Tabs'>")
 
+    def test_cols(self):
+        """Check the cols argument plots columns"""
+        # One column
+        fig = plt.plot_frame(self.frame, cols=10)
+        self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Tabs'>")
+
+        # Multiple columns
+        fig = plt.plot_frame(self.frame, cols=[10, 100, 1000])
+        self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Tabs'>")
+
 
 class TestPlotFrames(unittest.TestCase):
     """Test plot_frames function"""

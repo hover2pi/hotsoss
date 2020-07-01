@@ -13,5 +13,5 @@ numpy==1.15.4
 bokeh==1.2.0
 scipy==1.1.0
 
-pytest==3.8.2
+pytest==4.6
 pytest-runner==4.2

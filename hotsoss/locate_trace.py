@@ -287,7 +287,7 @@ def order_masks(frame, subarray='SUBSTRIP256', n_jobs=4, plot=False, save=False,
     return order1, order2
 
 
-def simulate_frame(filt='CLEAR', order_amps=(100, 10), plot=False):
+def simulate_frame(filt='CLEAR', order_amps=(100, 10), radius=25, plot=False):
     """
     Create a fake frame with traces
 
@@ -310,18 +310,18 @@ def simulate_frame(filt='CLEAR', order_amps=(100, 10), plot=False):
     cutoff = 2.37 if filt == 'F277W' else 0
 
     # Get the batman PSF
-    x = np.arange(40)
+    x = np.arange(radius*2)+1
     psf = xdsp.batman(x, 20, 5, 10, 6, 50, 8)
-    pix = int(len(psf)/2)
 
     # Iterate over the frame columns placing the psf, trimming where necessary
     for wave, amp, trace in zip(waves, order_amps, traces):
         for col, (w, y) in enumerate(zip(wave, trace)):
             if w > cutoff:
                 y = int(y)
-                start = max(0, y-pix)
-                end = min(y+pix, nrows)
-                frame[col, start:end] += psf[start-(y-pix):max(0, 2*pix-((y+pix)-end))]*amp
+                start = max(0, y-radius)
+                end = min(y+radius, nrows)
+                trimmed = psf[start-(y-radius):max(0, (2*radius+1)-((y+radius)-end))]*amp
+                frame[col, start:end] += trimmed
 
     # Transpose frame
     frame = frame.T
@@ -329,7 +329,7 @@ def simulate_frame(filt='CLEAR', order_amps=(100, 10), plot=False):
     if plot:
 
         # Make the figure
-        fig = figure(x_range=(0, 2048), y_range=(0, nrows), width=1024, height=140)
+        fig = figure(x_range=(0, 2048), y_range=(0, nrows), width=900, height=200)
         fig.image(image=[frame], x=0, y=0, dw=2048, dh=nrows, palette='Viridis256')
         show(fig)
 
@@ -488,7 +488,7 @@ def wavelength_bins(save=False, subarray='SUBSTRIP256', wavecal_file=None):
 
         # Load from file
         try:
-            signal_pixels = np.load(file)
+            signal_pixels = np.load(file, allow_pickle=True)
         except FileNotFoundError:
             print("No wavelength bin file. Generating one now...")
             signal_pixels = wavelength_bins(save=True)
