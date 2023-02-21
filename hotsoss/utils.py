@@ -276,7 +276,7 @@ def wave_solutions(subarray=None, order=None, file=None):
         idx = slice(0, 2048)
 
     # Select the right order
-    if order in [1, 2]:
+    if order in [1, 2, 3]:
         order = int(order)-1
     else:
         order = slice(0, 3)

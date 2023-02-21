@@ -59,7 +59,7 @@ def isolate_signal(idx, frame, bounds=None, sigma=3, err=None, radius=None, filt
     ord2 = np.ones_like(col)
 
     # Use the trace centers as the position of the center peak
-    x1, x2 = trace_polynomial(evaluate=True)[:, idx]
+    x1, x2 = trace_polynomial(evaluate=True)[:2, idx]
 
     # Set the column at which order 2 ends
     order2end = 1900 if col.size == 256 else 1050
@@ -219,6 +219,7 @@ def order_masks(frame, subarray='SUBSTRIP256', n_jobs=4, plot=False, save=False,
     sequence
         A masked frame for each trace order
     """
+    # TODO: Implement order 3. Just use fitting routine from specialsoss?
     # Get the file
     file = resource_filename('hotsoss', 'files/order_masks.npy')
 
@@ -287,7 +288,7 @@ def order_masks(frame, subarray='SUBSTRIP256', n_jobs=4, plot=False, save=False,
     return order1, order2
 
 
-def simulate_frame(filt='CLEAR', order_amps=(100, 10), radius=25, plot=False):
+def simulate_frame(filt='CLEAR', order_amps=(100, 10, 5), radius=25, plot=False):
     """
     Create a fake frame with traces
 
@@ -310,7 +311,7 @@ def simulate_frame(filt='CLEAR', order_amps=(100, 10), radius=25, plot=False):
     cutoff = 2.37 if filt == 'F277W' else 0
 
     # Get the batman PSF
-    x = np.arange(radius*2)+1
+    x = np.arange(radius * 2 ) + 1
     psf = xdsp.batman(x, 20, 5, 10, 6, 50, 8)
 
     # Iterate over the frame columns placing the psf, trimming where necessary
@@ -318,10 +319,10 @@ def simulate_frame(filt='CLEAR', order_amps=(100, 10), radius=25, plot=False):
         for col, (w, y) in enumerate(zip(wave, trace)):
             if w > cutoff:
                 y = int(y)
-                start = max(0, y-radius)
-                end = min(y+radius, nrows)
-                trimmed = psf[start-(y-radius):max(0, (2*radius+1)-((y+radius)-end))]*amp
-                frame[col, start:end] += trimmed
+                start = max(0, y - radius)
+                end = min(y + radius, nrows)
+                trimmed = psf[start - (y - radius):max(0, (2 * radius + 1) - ((y + radius) - end))] * amp
+                frame[col, start:end] += trimmed[0:end - start]
 
     # Transpose frame
     frame = frame.T
@@ -371,15 +372,20 @@ def trace_polynomial(subarray='SUBSTRIP256', order=None, evaluate=False, generat
 
     else:
 
-        # Coefficients to use
-        coeffs = [[1.71164994e-11, -4.72119272e-08, 5.10276801e-05, -5.91535309e-02, 8.30680347e+01],
-                  [2.35792131e-13, 2.42999478e-08, 1.03641247e-05, -3.63088657e-02, 9.96766537e+01]]
+        # Coefficients derived from NIS-018 commissioning data
+        coeffs = [[1.68975801e-11, -4.60822060e-08,  4.94623886e-05, -5.93935390e-02, 8.67263818e+01],
+                  [3.95721278e-11, -7.40683643e-08,  6.88340922e-05, -3.68009540e-02, 1.06704335e+02],
+                  [1.06699517e-11, 3.36931077e-08, 1.45570667e-05, 1.69277607e-02, 1.45254339e+02]]
+
+        # Coefficients derived from CV3 data
+        # coeffs = [[1.71164994e-11, -4.72119272e-08, 5.10276801e-05, -5.91535309e-02, 8.30680347e+01],
+        #           [2.35792131e-13, 2.42999478e-08, 1.03641247e-05, -3.63088657e-02, 9.96766537e+01]]
 
     # Specify the orders
     if order is None:
         slc = slice(None)
     elif isinstance(order, int) and order <= len(coeffs):
-        slc = slice(order-1, order)
+        slc = slice(order - 1, order)
     else:
         raise ValueError("{}: order not understood".format(order))
 
@@ -404,7 +410,7 @@ def trace_wavelengths(order=None, wavecal_file=None, npix=10, subarray='SUBSTRIP
     trace_pixels = trace_polynomial(evaluate=True)
 
     # Load the wavelength calibration data
-    wavecal = utils.wave_solutions(subarray=subarray, file=wavecal_file)[:2]
+    wavecal = utils.wave_solutions(subarray=subarray, file=wavecal_file)
 
     # Get average wavelength of N pixels
     for pix, wave_map in zip(trace_pixels, wavecal):
@@ -417,8 +423,8 @@ def trace_wavelengths(order=None, wavecal_file=None, npix=10, subarray='SUBSTRIP
         results.append(wavelengths)
 
     # Select the right order
-    if order in [1, 2]:
-        results = results[order-1]
+    if order in [1, 2, 3]:
+        results = results[order - 1]
 
     return results
 
@@ -448,9 +454,9 @@ def wavelength_bins(save=False, subarray='SUBSTRIP256', wavecal_file=None):
         trace_pixels = trace_polynomial(evaluate=True)
 
         # Load the wavelength calibration data
-        wavecal = utils.wave_solutions(subarray=subarray, file=wavecal_file)[:2]
+        wavecal = utils.wave_solutions(subarray=subarray, file=wavecal_file)
         wavelengths = trace_wavelengths(order=None, wavecal_file=wavecal_file, npix=10, subarray=subarray)
-        signal_pixels = [[], []]
+        signal_pixels = [[], [], []]
 
         # Store the pixel coordinates of each wavelength bin for each order
         for order, (pix, wave_map, wave_center) in enumerate(zip(trace_pixels, wavecal, wavelengths)):

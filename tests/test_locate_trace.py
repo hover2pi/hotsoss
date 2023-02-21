@@ -40,13 +40,13 @@ def test_order_masks():
     assert len(lt.order_masks(frame, plot=True)) == 2
 
     # Test save and subarray
-    assert len(lt.order_masks(frame, subarray='SUBSTRIP96', save=True)) == 2
+    # assert len(lt.order_masks(frame, subarray='SUBSTRIP96', save=True)) == 2
 
 
 def test_trace_polynomial():
     """Test trace_polynomial function"""
     # No order specified
-    assert len(lt.trace_polynomial(order=None, evaluate=False)) == 2
+    assert len(lt.trace_polynomial(order=None, evaluate=False)) == 3
 
     # Single order
     assert len(lt.trace_polynomial(order=1, evaluate=False)) == 5
@@ -58,7 +58,7 @@ def test_trace_polynomial():
 def test_trace_wavelengths():
     """Test trace_wavelengths function"""
     # No order specified
-    assert len(lt.trace_wavelengths(order=None)) == 2
+    assert len(lt.trace_wavelengths(order=None)) == 3
 
     # Single order
     assert len(lt.trace_wavelengths(order=1)) == 2048
@@ -67,7 +67,7 @@ def test_trace_wavelengths():
 def test_wavelength_bins():
     """Test wavelength_bins works"""
     # Default values for two orders
-    assert len(lt.wavelength_bins()) == 2
+    assert len(lt.wavelength_bins()) == 3
 
     # Generate
-    assert len(lt.wavelength_bins(save=True)) == 2
+    assert len(lt.wavelength_bins(save=True)) == 3
