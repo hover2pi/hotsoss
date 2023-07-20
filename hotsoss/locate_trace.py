@@ -3,14 +3,11 @@ import os
 from functools import partial
 from multiprocessing.dummy import Pool as ThreadPool
 from pkg_resources import resource_filename
-import time
 import warnings
 
-from astropy.io import fits
 from bokeh.plotting import figure, show
 from bokeh.layouts import column
 from bokeh.models import Span
-from bokeh.models.glyphs import Step
 import numpy as np
 from scipy.optimize import curve_fit
 
@@ -170,12 +167,12 @@ def isolate_signal(idx, frame, bounds=None, sigma=3, err=None, radius=None, filt
         fig.yaxis.axis_label = 'Count Rate [ADU/s]'
 
         # The data
-        fig.step(x, col, color='black', legend='Data', mode='center')
+        fig.step(x, col, color='black', legend_label='Data', mode='center')
 
         # Plot order 1 fit with limits
         color1 = '#2171b5'
         bm1 = xdsp.batman(x, *params[:6])
-        fig.line(x, bm1, legend='Order 1', color=color1, line_width=2, alpha=0.8)
+        fig.line(x, bm1, legend_label='Order 1', color=color1, line_width=2, alpha=0.8)
         low1 = Span(location=llim1, dimension='height', line_color=color1, line_dash='dashed')
         high1 = Span(location=ulim1, dimension='height', line_color=color1, line_dash='dashed')
         fig.renderers.extend([low1, high1])
@@ -186,7 +183,7 @@ def isolate_signal(idx, frame, bounds=None, sigma=3, err=None, radius=None, filt
         if llim2 is not None:
             color2 = '#DD4968'
             bm2 = xdsp.batman(x, *params[6:])
-            fig.line(x, bm2, legend='Order 2', color=color2, line_width=2, alpha=0.8)
+            fig.line(x, bm2, legend_label='Order 2', color=color2, line_width=2, alpha=0.8)
             low2 = Span(location=llim2, dimension='height', line_color=color2, line_dash='dashed')
             high2 = Span(location=ulim2, dimension='height', line_color=color2, line_dash='dashed')
             fig.renderers.extend([low2, high2])

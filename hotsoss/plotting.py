@@ -8,8 +8,7 @@ import copy
 
 from astropy.io import fits
 from bokeh.plotting import figure, show
-from bokeh.models import ColumnDataSource, HoverTool, CustomJSHover, LogColorMapper, FixedTicker, BasicTickFormatter, FuncTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
-from bokeh.models.widgets import Panel, Tabs
+from bokeh.models import Tabs, TabPanel, ColumnDataSource, HoverTool, CustomJSHover, LogColorMapper, FixedTicker, BasicTickFormatter, FuncTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
 from bokeh.layouts import gridplot, column
 import numpy as np
 
@@ -211,7 +210,7 @@ def plot_frame(frame, cols=None, uframe=None, scale='log', trace_coeffs=None, sa
 
             # Add the figure to the tab list
             if tabs:
-                plot_tabs.append(Panel(child=column([fig, col_fig]), title=pname))
+                plot_tabs.append(TabPanel(child=column([fig, col_fig]), title=pname))
             else:
                 plot_tabs.append(fig)
 
@@ -219,13 +218,13 @@ def plot_frame(frame, cols=None, uframe=None, scale='log', trace_coeffs=None, sa
 
             # No column object
             if tabs:
-                plot_tabs.append(Panel(child=fig, title=pname))
+                plot_tabs.append(TabPanel(child=fig, title=pname))
             else:
                 plot_tabs.append(fig)
 
     # Make the final tabbed figure
     if tabs:
-        final = Tabs(tabs=plot_tabs)
+        final = TabPanel(tabs=plot_tabs)
     else:
         final = plot_tabs[0]
 
@@ -371,7 +370,7 @@ def plot_frames(data, unc=None, idx=0, col=0, scale='linear', trace_coeffs=None,
                 fig.line(columns, Y, color='red')
 
         # Add the figure to the tab list
-        tabs.append(Panel(child=column(fig, col_fig), title=pname))
+        tabs.append(TabPanel(child=column(fig, col_fig), title=pname))
 
     # Make the final tabbed figure
     final = Tabs(tabs=tabs)
@@ -559,7 +558,7 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
 
     # Make the 2D spectra figure
     spec_fig = figure(x_range=(wmin, wmax), y_range=(tmin, tmax), x_axis_label=xlabel, y_axis_label=ylabel,
-                      plot_width=width, plot_height=height, title=title, tools="")
+                      width=width, height=height, title=title, tools="")
 
     # Plot the image
     color_mapper = LogColorMapper(palette="Viridis256", low=fmin, high=fmax)
@@ -573,7 +572,7 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
     spec_fig.hbar(y='y', height=1, right=wmax, source=sourceZ, color='blue', alpha=0.3)
 
     # Set the tooltips
-    spec_tt = HoverTool(names=["img"], tooltips=[("(x,y)", "($x{int}, $y{int})"), ("Flux", "@flux"), ('Wavelength', '@wavelength'), ('Time', '@time{0.00000}')])
+    spec_tt = HoverTool(name="img", tooltips=[("(x,y)", "($x{int}, $y{int})"), ("Flux", "@flux"), ('Wavelength', '@wavelength'), ('Time', '@time{0.00000}')])
     spec_fig.add_tools(spec_tt)
 
     # Change y tick labels
@@ -600,7 +599,7 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
     sp_fig.step('wavelength', 'flux', source=sourceX, color='blue', line_width=3, line_alpha=0.6, mode='center', name='wf')
 
     # Set the tooltips
-    sp_tt = HoverTool(names=['wf'], tooltips=[("Flux", "@flux"), ('Wavelength', '@wavelength')], mode='vline')
+    sp_tt = HoverTool(name='wf', tooltips=[("Flux", "@flux"), ('Wavelength', '@wavelength')], mode='vline')
     sp_fig.add_tools(sp_tt)
 
     # Change x tick labels
@@ -621,7 +620,7 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
     lc_fig.step('time', 'lightcurve', source=sourceY, color='red', line_width=3, line_alpha=0.6, mode='center', name='tl')
 
     # Set the tooltips
-    lc_tt = HoverTool(names=['tl'], tooltips=[("Time", "@time"), ('Flux', '@lightcurve')], mode='vline')
+    lc_tt = HoverTool(name='tl', tooltips=[("Time", "@time"), ('Flux', '@lightcurve')], mode='vline')
     lc_fig.tools.append(lc_tt)
 
     # Change x tick labels
