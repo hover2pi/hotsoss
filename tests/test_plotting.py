@@ -21,40 +21,40 @@ class TestPlotFrame(unittest.TestCase):
     def test_linearscale(self):
         """Test that a plot of linear data can be creted"""
         fig = plt.plot_frame(self.frame, scale='linear')
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting._figure.figure'>")
 
     def test_logscale(self):
         """Test that a plot of log scale can be created"""
         fig = plt.plot_frame(self.frame, scale='log')
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting._figure.figure'>")
 
     def test_coeffs(self):
         """Check the traces are drawn"""
         coeffs = lt.trace_polynomial()
         fig = plt.plot_frame(self.frame, scale='log', trace_coeffs=coeffs)
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting._figure.figure'>")
 
     def test_wavecal(self):
         """Check a wavecal array can be supplied"""
         # Order 1 only
         wavecal = np.ones((256, 2048))
         fig = plt.plot_frame(self.frame, wavecal=wavecal)
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting._figure.figure'>")
 
         # All orders
         wavecal = np.ones((3, 256, 2048))
         fig = plt.plot_frame(self.frame, wavecal=wavecal)
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting._figure.figure'>")
 
     def test_cols(self):
         """Check the cols argument plots columns"""
         # One column
         fig = plt.plot_frame(self.frame, cols=10)
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting._figure.figure'>")
 
         # Multiple columns
         fig = plt.plot_frame(self.frame, cols=[10, 100, 1000])
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting._figure.figure'>")
 
 
 class TestPlotFrames(unittest.TestCase):
@@ -109,7 +109,7 @@ class TestPlotRamp(unittest.TestCase):
     def test_ramp(self):
         """Test that a ramp plot can be created"""
         fig = plt.plot_ramp(self.frames)
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting._figure.figure'>")
 
 
 class TestPlotSpectrum(unittest.TestCase):
@@ -124,11 +124,11 @@ class TestPlotSpectrum(unittest.TestCase):
         """Test that a spectrum plot can be created"""
         # No figure
         fig = plt.plot_spectrum(self.wave, self.flux)
-        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.plotting._figure.figure'>")
 
         # With figure
         fig2 = plt.plot_spectrum(self.wave, self.flux, fig=fig)
-        self.assertEqual(str(type(fig2)), "<class 'bokeh.plotting.figure.Figure'>")
+        self.assertEqual(str(type(fig2)), "<class 'bokeh.plotting._figure.figure'>")
 
 
 class TestPlotTimeSeriesSpectra(unittest.TestCase):
@@ -144,7 +144,7 @@ class TestPlotTimeSeriesSpectra(unittest.TestCase):
         """Test that a spectrum plot can be created"""
         # Working plot
         fig = plt.plot_time_series_spectra(self.flux, wavelength=self.wave, time=self.time)
-        self.assertEqual(str(type(fig)), "<class 'bokeh.models.layouts.Column'>")
+        self.assertEqual(str(type(fig)), "<class 'bokeh.models.plots.GridPlot'>")
 
     def test_bad_input(self):
         """Test the function fails properly"""

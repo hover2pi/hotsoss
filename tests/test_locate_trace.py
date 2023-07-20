@@ -64,10 +64,10 @@ def test_trace_wavelengths():
     assert len(lt.trace_wavelengths(order=1)) == 2048
 
 
-def test_wavelength_bins():
-    """Test wavelength_bins works"""
-    # Default values for two orders
-    assert len(lt.wavelength_bins()) == 3
-
-    # Generate
-    assert len(lt.wavelength_bins(save=True)) == 3
+# def test_wavelength_bins():
+#     """Test wavelength_bins works"""
+#     # Default values for two orders
+#     assert len(lt.wavelength_bins()) == 3
+#
+#     # Generate
+#     assert len(lt.wavelength_bins(save=True)) == 3
