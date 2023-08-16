@@ -6,8 +6,8 @@ hotsoss
 .. image:: https://img.shields.io/pypi/v/hotsoss.svg
         :target: https://pypi.python.org/pypi/hotsoss
 
-.. image:: https://img.shields.io/travis/hover2pi/hotsoss.svg
-        :target: https://travis-ci.org/hover2pi/hotsoss
+.. image:: https://github.com/hover2pi/hotsoss/actions/workflows/python-package.yml/badge.svg
+        :target: https://github.com/hover2pi/hotsoss/actions/workflows/python-package.yml
 
 .. image:: https://readthedocs.org/projects/hotsoss/badge/?version=latest
         :target: https://hotsoss.readthedocs.io/en/latest/?badge=latest
