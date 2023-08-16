@@ -5,21 +5,65 @@ A module to plot SOSS data
 Authors: Joe Filippazzo
 """
 import copy
-from pkg_resources import resource_filename
-import os
 
 from astropy.io import fits
 from bokeh.plotting import figure, show
-from bokeh.models import ColumnDataSource, HoverTool, CustomJSHover, LogColorMapper, FixedTicker, BasicTickFormatter, FuncTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
-from bokeh.models.widgets import Panel, Tabs
+from bokeh.models import Tabs, TabPanel, ColumnDataSource, HoverTool, CustomJSHover, LogColorMapper, FixedTicker, BasicTickFormatter, FuncTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
 from bokeh.layouts import gridplot, column
 import numpy as np
 
-from . import utils
-from . import locate_trace as lt
+
+def quicklook(file, nint=0, ngrp=0, **kwargs):
+    """
+    Function to quickly plot a single frame of data from a JWST data file
+
+    Parameters
+    ----------
+    file: str
+        The filepath
+    nint: int
+        The integration to look at
+    ngrp: int
+        The group to look at
+    """
+    # Get the data
+    header = fits.getheader(file)
+    data = fits.getdata(file, extname='SCI')
+    try:
+        udata = fits.getdata(file, extname='ERR')
+    except KeyError:
+        udata = np.sqrt(data)
+        print("No ERR extension")
+
+    # Check the data shape
+    if data.ndim == 4:
+        nints, ngrps, rows, cols = data.shape
+        if nint > nints:
+            print("{} > {}: Choose a different nint".format(nint, nints))
+        if ngrp > ngrps:
+            print("{} > {}: Choose a different ngrp".format(ngrp, ngrps))
+        frame = data[nint, ngrp]
+        uframe = udata[nint, ngrp]
+    elif data.ndim == 3:
+        nints, rows, cols = data.shape
+        if nint > nints:
+            print("{} > {}: Choose a different nint".format(nint, nints))
+        frame = data[nint]
+        uframe = udata[nint]
+    elif data.ndim == 2:
+        frame = data
+        uframe = udata
+    else:
+        raise ValueError("{}: Not sure what to do with that shape data.".format(data.shape))
+
+    # Pass it to plot_frame
+    fig = plot_frame(frame, uframe=uframe, **kwargs)
+    show(fig)
+
+    return header
 
 
-def plot_frame(frame, cols=None, scale='linear', trace_coeffs=None, saturation=0.8, title=None, wavecal=None):
+def plot_frame(frame, cols=None, uframe=None, scale='log', trace_coeffs=None, saturation=0.8, plot_width=900, plot_height=None, title=None, wavecal=None, color_map='Viridis256', tabs=False):
     """
     Plot a SOSS frame
 
@@ -29,12 +73,16 @@ def plot_frame(frame, cols=None, scale='linear', trace_coeffs=None, saturation=0
         The 2D frame to plot
     cols: int, list, tuple
         The 1D column(s) to plot
+    uframe: sequence (optional)
+        The uncertainty frame to plot
     scale: str
         Plot scale, ['linear', 'log']
     trace_coeffs: sequence
         Plot the traces for the given coefficients
     saturation: float
         The full-well fraction to be considered saturated, (0, 1)
+    plot_width: int
+        The width of the plot in pixels
     title: str
         A title for the plot
     wavecal: np.ndarray
@@ -46,6 +94,9 @@ def plot_frame(frame, cols=None, scale='linear', trace_coeffs=None, saturation=0
     # Get data, snr, and saturation for plotting
     dat = frame
     snr = np.sqrt(frame)
+    if uframe is not None:
+        if uframe.shape == frame.shape:
+            snr = frame / uframe
     fullWell = 65536.0
     sat = dat > saturation * fullWell
     sat = sat.astype(int)
@@ -81,12 +132,12 @@ def plot_frame(frame, cols=None, scale='linear', trace_coeffs=None, saturation=0
     toolbar = 'above'
 
     # Draw the figures
-    tabs = []
+    plot_tabs = []
     for pname, ptype in zip(['Counts', 'SNR', 'Saturation ({}% Full Well)'.format(saturation*100)], ['data', 'snr', 'saturation']):
 
         # Make the figure
         fig_title = '{} - {}'.format(title, pname)
-        fig = figure(x_range=x_range, y_range=y_range, tooltips=tooltips, width=1024, height=height, title=fig_title, toolbar_location=toolbar, toolbar_sticky=True)
+        fig = figure(x_range=x_range, y_range=y_range, tooltips=tooltips, width=plot_width, height=plot_height or height, title=fig_title, toolbar_location=toolbar, toolbar_sticky=True)
 
         # Get the data
         vals = source[ptype][0]
@@ -104,7 +155,6 @@ def plot_frame(frame, cols=None, scale='linear', trace_coeffs=None, saturation=0
             vmin = int(np.nanmin(vals[vals >= 0]))
             vmax = int(np.nanmax(vals[vals < np.inf]))
             formatter = BasicTickFormatter()
-            color_map = 'Viridis256'
             ticker = BasicTicker()
 
         # Set the plot scale
@@ -142,38 +192,46 @@ def plot_frame(frame, cols=None, scale='linear', trace_coeffs=None, saturation=0
                 cols = [cols]
 
             # Initialize column figure
-            col_fig = figure(width=1024, height=300, toolbar_location=toolbar, toolbar_sticky=True)
+            col_fig = figure(width=plot_width, height=300, toolbar_location=toolbar, toolbar_sticky=True)
 
             for n, col in enumerate(cols):
                 col_color = col_colors[n]
-                col_fig.step(np.arange(256), vals[:, col], color=col_color, legend='Col {}'.format(col))
+                col_fig.step(np.arange(nrows), vals[:, col], color=col_color, legend_label='Col {}'.format(col))
                 col_fig.y_range = Range1d(vmin * 0.9, vmax * 1.1)
                 col_fig.x_range = Range1d(*y_range)
 
                 # Add line to image
-                fig.line([col, col], [0, 256], color=col_color, line_width=3)
+                fig.line([col, col], [0, nrows], color=col_color, line_width=3)
 
             # Update click policy
             col_fig.legend.click_policy = 'hide'
 
-
         if col_fig is not None:
 
             # Add the figure to the tab list
-            tabs.append(Panel(child=column([fig, col_fig]), title=pname))
+            if tabs:
+                plot_tabs.append(TabPanel(child=column([fig, col_fig]), title=pname))
+            else:
+                plot_tabs.append(fig)
 
         else:
 
             # No column object
-            tabs.append(Panel(child=fig, title=pname))
+            if tabs:
+                plot_tabs.append(TabPanel(child=fig, title=pname))
+            else:
+                plot_tabs.append(fig)
 
     # Make the final tabbed figure
-    final = Tabs(tabs=tabs)
+    if tabs:
+        final = TabPanel(tabs=plot_tabs)
+    else:
+        final = plot_tabs[0]
 
     return final
 
 
-def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturation=0.8, width=1000, title=None, wavecal=None):
+def plot_frames(data, unc=None, idx=0, col=0, scale='linear', trace_coeffs=None, saturation=0.8, width=1000, title=None, wavecal=None):
     """
     Plot a SOSS frame
 
@@ -181,6 +239,8 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
     ----------
     data: sequence
         The 3D data to plot
+    unc: sequence
+        The 3D uncertainty to plot
     scale: str
         Plot scale, ['linear', 'log']
     trace_coeffs: sequence
@@ -200,7 +260,10 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
 
     # Get data, snr, and saturation for plotting
     dat = data
-    snr = np.sqrt(data)
+    if unc is None:
+        snr = np.sqrt(data)
+    else:
+        snr = data / unc
     fullWell = 65536.0
     sat = dat > saturation * fullWell
     sat = sat.astype(int)
@@ -307,7 +370,7 @@ def plot_frames(data, idx=0, col=0, scale='linear', trace_coeffs=None, saturatio
                 fig.line(columns, Y, color='red')
 
         # Add the figure to the tab list
-        tabs.append(Panel(child=column(fig, col_fig), title=pname))
+        tabs.append(TabPanel(child=column(fig, col_fig), title=pname))
 
     # Make the final tabbed figure
     final = Tabs(tabs=tabs)
@@ -414,7 +477,10 @@ def plot_spectrum(wavelength, flux, fig=None, scale='log', legend=None, ylabel='
         fig = figure(x_axis_type=scale, y_axis_type=scale, width=width, height=height)
 
     # Add the spectrum plot
-    fig.step(wavelength, flux, mode='center', legend=legend, **kwargs)
+    if legend is None:
+        fig.step(wavelength, flux, mode='center', **kwargs)
+    else:
+        fig.step(wavelength, flux, mode='center', legend_label=legend, **kwargs)
     fig.yaxis.axis_label = ylabel
     fig.xaxis.axis_label = xlabel
 
@@ -492,7 +558,7 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
 
     # Make the 2D spectra figure
     spec_fig = figure(x_range=(wmin, wmax), y_range=(tmin, tmax), x_axis_label=xlabel, y_axis_label=ylabel,
-                      plot_width=width, plot_height=height, title=title, tools="")
+                      width=width, height=height, title=title, tools="")
 
     # Plot the image
     color_mapper = LogColorMapper(palette="Viridis256", low=fmin, high=fmax)
@@ -506,7 +572,7 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
     spec_fig.hbar(y='y', height=1, right=wmax, source=sourceZ, color='blue', alpha=0.3)
 
     # Set the tooltips
-    spec_tt = HoverTool(names=["img"], tooltips=[("(x,y)", "($x{int}, $y{int})"), ("Flux", "@flux"), ('Wavelength', '@wavelength'), ('Time', '@time{0.00000}')])
+    spec_tt = HoverTool(name="img", tooltips=[("(x,y)", "($x{int}, $y{int})"), ("Flux", "@flux"), ('Wavelength', '@wavelength'), ('Time', '@time{0.00000}')])
     spec_fig.add_tools(spec_tt)
 
     # Change y tick labels
@@ -533,7 +599,7 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
     sp_fig.step('wavelength', 'flux', source=sourceX, color='blue', line_width=3, line_alpha=0.6, mode='center', name='wf')
 
     # Set the tooltips
-    sp_tt = HoverTool(names=['wf'], tooltips=[("Flux", "@flux"), ('Wavelength', '@wavelength')], mode='vline')
+    sp_tt = HoverTool(name='wf', tooltips=[("Flux", "@flux"), ('Wavelength', '@wavelength')], mode='vline')
     sp_fig.add_tools(sp_tt)
 
     # Change x tick labels
@@ -554,7 +620,7 @@ def plot_time_series_spectra(flux, wavelength=None, time=None, xlabel='Column', 
     lc_fig.step('time', 'lightcurve', source=sourceY, color='red', line_width=3, line_alpha=0.6, mode='center', name='tl')
 
     # Set the tooltips
-    lc_tt = HoverTool(names=['tl'], tooltips=[("Time", "@time"), ('Flux', '@lightcurve')], mode='vline')
+    lc_tt = HoverTool(name='tl', tooltips=[("Time", "@time"), ('Flux', '@lightcurve')], mode='vline')
     lc_fig.tools.append(lc_tt)
 
     # Change x tick labels
