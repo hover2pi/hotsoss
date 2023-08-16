@@ -17,3 +17,8 @@ History
 ------------------
 
 * Updated TSO plot to highlight active data in subplots.
+
+0.1.9 (2023-08-16)
+------------------
+
+* Adds Python 3.9 and 3.10 support and drops lower Python version support

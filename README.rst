@@ -26,7 +26,7 @@ Helpful Organizational Tools for SOSS
 
 Authors: Joe Filippazzo
 
-This pure Python 3.5+ package contains helpful reference file
+This pure Python 3.9+ package contains helpful reference file
 organizational tools and data visulaization functions that may
 be useful in analyzing observations from the Single Object Slitless
 Spectroscopy (SOSS) mode of the Near-Infrared Imager and Slitless

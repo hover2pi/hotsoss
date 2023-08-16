@@ -1,7 +1,7 @@
-pip==23.2
-wheel==0.40.0
-astropy==5.3.1
-numpy==1.25.1
-bokeh==3.2.1
-scipy==1.9.3
-pytest==7.4.0
+pip>=23.2
+wheel>=0.40.0
+astropy>=5.3.1
+numpy>=1.25.1
+bokeh>=3.2.1
+scipy>=1.9.3
+pytest>=7.4.0

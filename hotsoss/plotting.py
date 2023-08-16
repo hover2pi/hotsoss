@@ -63,7 +63,7 @@ def quicklook(file, nint=0, ngrp=0, **kwargs):
     return header
 
 
-def plot_frame(frame, cols=None, uframe=None, scale='log', trace_coeffs=None, saturation=0.8, plot_width=900, plot_height=None, title=None, wavecal=None, color_map='Viridis256', tabs=False):
+def plot_frame(frame, cols=None, uframe=None, units='ADU/s', scale='log', trace_coeffs=None, saturation=0.8, plot_width=900, plot_height=None, title=None, wavecal=None, color_map='Viridis256', tabs=False):
     """
     Plot a SOSS frame
 
@@ -75,6 +75,8 @@ def plot_frame(frame, cols=None, uframe=None, scale='log', trace_coeffs=None, sa
         The 1D column(s) to plot
     uframe: sequence (optional)
         The uncertainty frame to plot
+    units: str
+        The units of the data
     scale: str
         Plot scale, ['linear', 'log']
     trace_coeffs: sequence
@@ -110,7 +112,7 @@ def plot_frame(frame, cols=None, uframe=None, scale='log', trace_coeffs=None, sa
     source = dict(data=[dat], snr=[snr], saturation=[sat])
 
     # Set the tooltips
-    tooltips = [("(x,y)", "($x{int}, $y{int})"), ("ADU/s", "@data"), ("SNR", "@snr"), ('Saturation', '@saturation')]
+    tooltips = [("(x,y)", "($x{int}, $y{int})"), (units, "@data"), ("SNR", "@snr"), ('Saturation', '@saturation')]
 
     # Add wavelength calibration if possible
     if isinstance(wavecal, np.ndarray):
@@ -133,7 +135,7 @@ def plot_frame(frame, cols=None, uframe=None, scale='log', trace_coeffs=None, sa
 
     # Draw the figures
     plot_tabs = []
-    for pname, ptype in zip(['Counts', 'SNR', 'Saturation ({}% Full Well)'.format(saturation*100)], ['data', 'snr', 'saturation']):
+    for pname, ptype in zip([units, 'SNR', 'Saturation ({}% Full Well)'.format(saturation*100)], ['data', 'snr', 'saturation']):
 
         # Make the figure
         fig_title = '{} - {}'.format(title, pname)
@@ -231,7 +233,7 @@ def plot_frame(frame, cols=None, uframe=None, scale='log', trace_coeffs=None, sa
     return final
 
 
-def plot_frames(data, unc=None, idx=0, col=0, scale='linear', trace_coeffs=None, saturation=0.8, width=1000, title=None, wavecal=None):
+def plot_frames(data, unc=None, idx=0, col=0, units='Counts', scale='linear', trace_coeffs=None, saturation=0.8, width=1000, title=None, wavecal=None):
     """
     Plot a SOSS frame
 
@@ -241,6 +243,8 @@ def plot_frames(data, unc=None, idx=0, col=0, scale='linear', trace_coeffs=None,
         The 3D data to plot
     unc: sequence
         The 3D uncertainty to plot
+    units: str
+        The units of the data
     scale: str
         Plot scale, ['linear', 'log']
     trace_coeffs: sequence
@@ -293,7 +297,7 @@ def plot_frames(data, unc=None, idx=0, col=0, scale='linear', trace_coeffs=None,
     col_available = ColumnDataSource(data=col_dict)
 
     # Set the tooltips
-    tooltips = [("(x,y)", "($x{int}, $y{int})"), ("ADU/s", "@counts"), ("SNR", "@snr"), ('Saturation', '@saturation')]
+    tooltips = [("(x,y)", "($x{int}, $y{int})"), (units, "@counts"), ("SNR", "@snr"), ('Saturation', '@saturation')]
     col_color = 'blue'
 
     # Add wavelength calibration if possible
@@ -317,7 +321,7 @@ def plot_frames(data, unc=None, idx=0, col=0, scale='linear', trace_coeffs=None,
 
     # Draw the figures
     tabs = []
-    for pdata, pname, ptype, ylabel in zip([dat, snr, sat], ['Counts', 'SNR', 'Saturation ({}% Full Well)'.format(saturation*100)], ['counts', 'snr', 'saturation'], ['Count Rate [ADU/s]', 'SNR', 'Saturated']):
+    for pdata, pname, ptype, ylabel in zip([dat, snr, sat], [units, 'SNR', 'Saturation ({}% Full Well)'.format(saturation*100)], ['counts', 'snr', 'saturation'], ['Count Rate [ADU/s]', 'SNR', 'Saturated']):
 
         # Make the figure
         fig_title = '{} - {}'.format(title, pname)
