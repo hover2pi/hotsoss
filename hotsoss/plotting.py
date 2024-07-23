@@ -553,7 +553,7 @@ def plot_frames(data, unc=None, idx=0, col=0, units='Counts', scale='linear', tr
 
         # Saturation plot is different
         if ptype == 'saturation':
-            formatter = FuncTickFormatter(code="""return {0: 'Unsaturated', 1: 'Saturated'}[tick]""")
+            formatter = CustomJSTickFormatter(code="""return {0: 'Unsaturated', 1: 'Saturated'}[tick]""")
             color_map = ['#404387', '#FDE724']
             ticker = FixedTicker(ticks=[vmin, vmax])
 
