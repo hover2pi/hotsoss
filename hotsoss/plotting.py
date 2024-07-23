@@ -8,8 +8,9 @@ import copy
 
 from astropy.io import fits
 from bokeh.plotting import figure, show
-from bokeh.models import Tabs, TabPanel, ColumnDataSource, HoverTool, CustomJSHover, LogColorMapper, FixedTicker, BasicTickFormatter, FuncTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
+from bokeh.models import Tabs, TabPanel, ColumnDataSource, HoverTool, CustomJSHover, LogColorMapper, FixedTicker, BasicTickFormatter, CustomJSTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
 from bokeh.layouts import gridplot, column
+from bokeh.palettes import viridis
 import numpy as np
 
 
@@ -63,7 +64,221 @@ def quicklook(file, nint=0, ngrp=0, **kwargs):
     return header
 
 
-def plot_frame(frame, cols=None, uframe=None, units='ADU/s', scale='log', trace_coeffs=None, saturation=0.8, plot_width=900, plot_height=None, title=None, wavecal=None, color_map='Viridis256', tabs=False):
+def compare_frames(frames, titles, uframes=None, units='ADU/s', scale='linear', wavecal=None, fullWell=65536., saturation=0.8, color_map='Viridis256', title="SOSS Frame Comparison"):
+    """
+    Plot several frames simultaneously with a shared cross-section plot
+
+    Parameters
+    ----------
+    frames: sequence
+        A list of the frames to plot
+
+    Returns
+    -------
+
+    """
+    # Set shared plot params
+    nrows, ncols = frames[0].shape
+    x_range = (0, ncols)
+    y_range = (0, nrows)
+    height = int(nrows/2.)+120
+
+    # Add a plot for each frame
+    img_plots = []
+    line_data = []
+    for n, frame in enumerate(frames):
+
+        # Link all image axis ranges
+        if n > 0:
+            x_range = img_plots[0][0].x_range
+            y_range = img_plots[0][0].y_range
+
+        # Make the figure
+        fig = figure(x_range=x_range, y_range=y_range, width=800, height=height, title=titles[n])
+
+        # Get data, snr, and saturation for plotting
+        dat = frame
+        snr = np.sqrt(frame)
+        if uframes is not None:
+            snr = frame / uframes[n]
+
+        sat = dat > saturation * fullWell
+        sat = sat.astype(int)
+        dh, dw = dat.shape
+
+        # Fix if log scale
+        if scale == 'log':
+            dat[dat < 1.] = 1.
+
+        # Set the source data
+        source = ColumnDataSource(data=dict(img=[dat], snr=[snr], saturation=[sat]))
+        line_data.append(np.nansum(dat, axis=0))
+
+        # Set the tooltips
+        tooltips = [("(x,y)", "($x{int}, $y{int})"), (units, "@data"), ("SNR", "@snr"), ('Saturation', '@saturation')]
+
+        # Add wavelength calibration if possible
+        if isinstance(wavecal, np.ndarray):
+            if wavecal.shape == frame.shape:
+                source['wave1'] = [wavecal]
+                tooltips.append(("Wavelength", "@wave1"))
+            if wavecal.ndim == 3 and wavecal.shape[0] == 3:
+                source['wave1'] = [wavecal[0]]
+                source['wave2'] = [wavecal[1]]
+                source['wave3'] = [wavecal[2]]
+                tooltips.append(("Wave 1", "@wave1"))
+                tooltips.append(("Wave 2", "@wave2"))
+                tooltips.append(("Wave 3", "@wave3"))
+
+        vmin = int(np.nanmin(dat[dat >= 0]))
+        vmax = int(np.nanmax(dat[dat < np.inf]))
+
+        # Set the plot scale
+        if scale == 'log':
+            mapper = LogColorMapper(palette=color_map, low=vmin, high=vmax)
+        else:
+            mapper = LinearColorMapper(palette=color_map, low=vmin, high=vmax)
+
+        # Add a line renderer for each series
+        line_renderer = fig.image(source=source, image='img', x=0, y=0, dw=dw, dh=dh, color_mapper=mapper)
+
+        # Create a HoverTool for each series with unique tooltips
+        hover_tool = HoverTool(tooltips=tooltips, renderers=[line_renderer])
+        fig.add_tools(hover_tool)
+
+        img_plots.append([fig])
+
+    # Add the column plot
+    colplt = figure(x_range=x_range, y_range=y_range, width=800, height=height)
+    for color, ldata, titl in zip(['blue','red','green'], line_data, titles):
+        colplt.line(np.arange(2048), ldata, color=color, legend_label=titl)
+
+    show(gridplot(img_plots + [[colplt]]))
+
+
+def plot(frame, scale='linear', title="My Plot", histogram=False, x_range=None, y_range=None, low=None, high=None, width=400, height=400, epsilon=1e-5, palette="Viridis256", bins=100):
+    """
+    Generic function to plot 2D data with tooltips
+
+    Parameters
+    ----------
+    frame: sequence
+        The 2D array to plot
+    scale: str
+        The scaling of the data
+    title: str
+        The title for the plot
+    histogram: bool
+        Also plot a histogram of the data
+    x_range: sequence
+        The (start, end) values for the x-axis
+    y_range: sequence
+        The (start, end) values for the y_axis
+    low: float
+        The low for the color range
+    high: float
+        The high for the color range
+    width: int
+        The plot width
+    height: int
+        The plot height
+    epsilon: float
+        The value to set for n<0 if log scale
+    palette: str
+        The bokeh color palette to use
+
+    Returns
+    -------
+    bokeh.figure.Figure
+        The bokeh plot
+    """
+    # Validate scale input
+    if scale not in ['linear', 'log']:
+        raise ValueError("Scale must be either 'linear' or 'log'")
+
+    # Adjust array for log scale to avoid zero or negative values
+    if scale == 'log':
+        frame = np.where(frame <= 0, epsilon, frame)
+
+    # Get the dimensions of the array
+    nrows, ncols = frame.shape
+
+    # Create 2D data source
+    source = ColumnDataSource(data=dict(image=[frame]))
+
+    # Create a figure
+    p = figure(title=title, width=width, height=height, x_range=x_range or (0, ncols), y_range=y_range or (0, nrows), tools='pan,box_zoom,reset,box_select,save', tooltips=[("x", "$x{0}"), ("y", "$y{0}"), ("Value", "@image")])
+
+    # Define color mappers for linear and logarithmic scales
+    mapper = LinearColorMapper if scale == 'linear' else LogColorMapper
+    color_mapper = mapper(palette=palette, low=low or np.nanmin(frame), high=high or np.nanmax(frame))
+
+    # Add the image glyph to the figure
+    p.image(image="image", x=0, y=0, dw=ncols, dh=nrows, color_mapper=color_mapper, source=source)
+    color_bar = ColorBar(color_mapper=color_mapper, location=(0, 0))
+    p.add_layout(color_bar, 'right')
+
+    if histogram:
+
+        # Remove NaN values
+        array = frame[~np.isnan(frame)].flatten()
+
+        # Create histogram data source
+        hist_source = ColumnDataSource(data=dict(top=[], left=[], right=[]))
+
+        # Create the histogram
+        hist_fig = figure(title="Histogram", width=width, height=height, tools="pan,box_zoom,reset,save")
+        hist_fig.quad(top='top', bottom=0, left='left', right='right', line_color="white", fill_color="navy",
+                      fill_alpha=0.5, source=hist_source)
+
+        # Create CustomJS callback for the histogram update
+        callback = CustomJS(args=dict(source=source, hist_source=hist_source, array=array, hist_fig=hist_fig), code="""
+            const indices = source.selected.indices;
+            if (indices.length === 0) {
+                return;
+            }
+            const data = array;
+            const selected_data = indices.map(i => data[Math.floor(i / ncols)][i % ncols]);
+    
+            // Compute the histogram
+            const bins = 30;
+            const min = Math.min(...selected_data);
+            const max = Math.max(...selected_data);
+            const step = (max - min) / bins;
+    
+            const hist = Array(bins).fill(0);
+            for (let i = 0; i < selected_data.length; i++) {
+                const bin = Math.floor((selected_data[i] - min) / step);
+                hist[Math.min(bin, bins - 1)]++;
+            }
+    
+            const left = [];
+            const right = [];
+            const top = hist;
+            for (let i = 0; i < bins; i++) {
+                left.push(min + i * step);
+                right.push(min + (i + 1) * step);
+            }
+    
+            hist_source.data = {top: top, left: left, right: right};
+            hist_source.change.emit();
+    
+            // Update the range of the histogram plot
+            hist_fig.x_range.start = min;
+            hist_fig.x_range.end = max;
+        """)
+
+        # Attach the callback to the source's selected attribute
+        source.selected.js_on_change('indices', callback)
+
+        return gridplot([[p, hist_fig]])
+
+    else:
+
+        return p
+
+
+def plot_frame(frame, cols=None, uframe=None, units='ADU/s', scale='log', trace_coeffs=None, saturation=0.8, plot_width=900, plot_height=None, low=None, high=None, title=None, wavecal=None, color_map=None, tabs=False):
     """
     Plot a SOSS frame
 
@@ -135,6 +350,7 @@ def plot_frame(frame, cols=None, uframe=None, units='ADU/s', scale='log', trace_
 
     # Draw the figures
     plot_tabs = []
+    color_map = color_map or viridis(256)
     for pname, ptype in zip([units, 'SNR', 'Saturation ({}% Full Well)'.format(saturation*100)], ['data', 'snr', 'saturation']):
 
         # Make the figure
@@ -148,14 +364,16 @@ def plot_frame(frame, cols=None, uframe=None, units='ADU/s', scale='log', trace_
         if ptype == 'saturation':
             vmin = 0
             vmax = 1
-            formatter = FuncTickFormatter(code="""return {0: 'Unsaturated', 1: 'Saturated'}[tick]""")
+            formatter = CustomJSTickFormatter(code="""return {0: 'Unsaturated', 1: 'Saturated'}[tick]""")
             color_map = ['#404387', '#FDE724']
             ticker = FixedTicker(ticks=[vmin, vmax])
 
         # Counts and SNR are similar plots
         else:
-            vmin = int(np.nanmin(vals[vals >= 0]))
-            vmax = int(np.nanmax(vals[vals < np.inf]))
+            # vmin = low or int(np.nanmin(vals[vals >= 0]))
+            # vmax = high or int(np.nanmax(vals[vals < np.inf]))
+            vmin = np.nanmin(vals)
+            vmax = np.nanmax(vals)
             formatter = BasicTickFormatter()
             ticker = BasicTicker()
 
@@ -178,7 +396,10 @@ def plot_frame(frame, cols=None, uframe=None, units='ADU/s', scale='log', trace_
                 trace_coeffs = [trace_coeffs]
 
             for coeffs in trace_coeffs:
-                Y = np.polyval(coeffs, X)
+                if len(coeffs) == 2048:
+                    Y = coeffs
+                else:
+                    Y = np.polyval(coeffs, X)
                 fig.line(X, Y, color='red', line_dash='dashed')
 
         # Add the colorbar
