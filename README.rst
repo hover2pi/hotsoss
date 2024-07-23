@@ -36,4 +36,3 @@ Telescope (JWST).
 Additional resources:
 
 - `Full documentation <https://hotsoss.readthedocs.io/en/latest/>`_
-- `Build history <https://travis-ci.org/hover2pi/hotsoss>`_
