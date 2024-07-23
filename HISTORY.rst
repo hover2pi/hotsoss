@@ -22,3 +22,8 @@ History
 ------------------
 
 * Adds Python 3.9 and 3.10 support and drops lower Python version support
+
+0.1.10 (2024-07-23)
+-------------------
+
+* Removes Python 3.9 support and adds Python 3.11 support. Also fixes a deprecation error caused by bokeh.
