@@ -8,7 +8,7 @@ import copy
 
 from astropy.io import fits
 from bokeh.plotting import figure, show
-from bokeh.models import Tabs, Panel, ColumnDataSource, HoverTool, CustomJSHover, LogColorMapper, FixedTicker, BasicTickFormatter, CustomJSTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
+from bokeh.models import Tabs, TabPanel, ColumnDataSource, HoverTool, CustomJSHover, LogColorMapper, FixedTicker, BasicTickFormatter, CustomJSTickFormatter, BasicTicker, LogTicker, LinearColorMapper, ColorBar, Span, CustomJS, Slider, Range1d
 from bokeh.layouts import gridplot, column
 from bokeh.palettes import viridis
 import numpy as np
@@ -595,7 +595,7 @@ def plot_frames(data, unc=None, idx=0, col=0, units='Counts', scale='linear', tr
                 fig.line(columns, Y, color='red')
 
         # Add the figure to the tab list
-        tabs.append(Panel(child=column(fig, col_fig), title=pname))
+        tabs.append(TabPanel(child=column(fig, col_fig), title=pname))
 
     # Make the final tabbed figure
     final = Tabs(tabs=tabs)
