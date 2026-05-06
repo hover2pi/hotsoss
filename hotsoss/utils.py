@@ -6,8 +6,9 @@ Authors: Joe Filippazzo
 """
 
 import itertools
-from pkg_resources import resource_filename
-
+import atexit
+from contextlib import ExitStack
+import importlib.resources
 import astropy.constants as ac
 from astropy.io import fits
 import astropy.units as q
@@ -49,7 +50,14 @@ def spectral_response(wavelength, filt='CLEAR', subarray='SUBSTRIP256', order=1,
         raise ValueError("{}: Not a valid order. Please select from [1, 2, 3].".format(order))
 
     # Get absolute calibration reference file
-    calfile = calfile or resource_filename('hotsoss', 'files/niriss_ref_photom.fits')
+    if not calfile:
+        file_manager = ExitStack()
+        atexit.register(file_manager.close)
+        calfile = file_manager.enter_context(
+            importlib.resources.as_file(
+                importlib.resources.files("hotsoss") / 'files/niriss_ref_photom.fits'
+            )
+        )
     caldata = fits.getdata(calfile)
 
     # Get relative spectral response for the order (from
@@ -142,7 +150,13 @@ def planet_data():
     sequence
         The wavelength and atmospheric transmission of the planet
     """
-    planet_file = resource_filename('hotsoss', '/files/WASP107b_pandexo_input_spectrum.dat')
+    file_manager = ExitStack()
+    atexit.register(file_manager.close)
+    planet_file = file_manager.enter_context(
+        importlib.resources.as_file(
+            importlib.resources.files("hotsoss") / 'files/WASP107b_pandexo_input_spectrum.dat'
+        )
+    )
     planet = np.genfromtxt(planet_file, unpack=True)
     planet1D = [planet[0]*q.um, planet[1]]
 
@@ -158,7 +172,13 @@ def star_data():
     sequence
         The wavelength and flux of the star
     """
-    star_file = resource_filename('hotsoss', 'files/scaled_spectrum.txt')
+    file_manager = ExitStack()
+    atexit.register(file_manager.close)
+    star_file = file_manager.enter_context(
+        importlib.resources.as_file(
+            importlib.resources.files("hotsoss") / 'files/scaled_spectrum.txt'
+        )
+    )
     star = np.genfromtxt(star_file, unpack=True)
     star1D = [star[0]*q.um, (star[1]*q.W/q.m**2/q.um).to(q.erg/q.s/q.cm**2/q.AA)]
 
@@ -265,7 +285,13 @@ def wave_solutions(subarray=None, order=None, file=None):
     """
     # Get the directory
     if file is None:
-        file = resource_filename('hotsoss', '/files/soss_wavelengths_fullframe.fits')
+        file_manager = ExitStack()
+        atexit.register(file_manager.close)
+        file = file_manager.enter_context(
+            importlib.resources.as_file(
+                importlib.resources.files("hotsoss") / 'files/soss_wavelengths_fullframe.fits'
+            )
+        )
 
     # Trim to the correct subarray
     if subarray == 'SUBSTRIP256':

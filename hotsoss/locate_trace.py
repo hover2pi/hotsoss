@@ -2,7 +2,9 @@
 import os
 from functools import partial
 from multiprocessing.dummy import Pool as ThreadPool
-from pkg_resources import resource_filename
+import atexit
+from contextlib import ExitStack
+import importlib.resources
 import warnings
 
 from bokeh.plotting import figure, show
@@ -218,7 +220,13 @@ def order_masks(frame, subarray='SUBSTRIP256', n_jobs=4, plot=False, save=False,
     """
     # TODO: Implement order 3. Just use fitting routine from specialsoss?
     # Get the file
-    file = resource_filename('hotsoss', 'files/order_masks.npy')
+    file_manager = ExitStack()
+    atexit.register(file_manager.close)
+    file = file_manager.enter_context(
+        importlib.resources.as_file(
+            importlib.resources.files("hotsoss") / "files/order_masks.npy"
+        )
+    )
 
     # Generate the trace masks
     if save:
@@ -358,7 +366,13 @@ def trace_polynomial(subarray='SUBSTRIP256', order=None, evaluate=False, generat
     if generate:
 
         # Get the data
-        file = resource_filename('hotsoss', 'files/soss_wavelength_trace_table1.txt')
+        file_manager = ExitStack()
+        atexit.register(file_manager.close)
+        file = file_manager.enter_context(
+            importlib.resources.as_file(
+                importlib.resources.files("hotsoss") / "files/soss_wavelength_trace_table1.txt"
+            )
+        )
         x1, y1, w1, x2, y2, w2 = np.genfromtxt(file, unpack=True)
 
         # Fit the polynomails
@@ -443,7 +457,13 @@ def wavelength_bins(save=False, subarray='SUBSTRIP256', wavecal_file=None):
     list
         The (x, y) coordinates of all the pixels in each wavelength bin
     """
-    file = resource_filename('hotsoss', 'files/wavelength_bins.npy')
+    file_manager = ExitStack()
+    atexit.register(file_manager.close)
+    file = file_manager.enter_context(
+        importlib.resources.as_file(
+            importlib.resources.files("hotsoss") / "files/wavelength_bins.npy"
+        )
+    )
 
     if save:
 
