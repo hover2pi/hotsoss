@@ -433,7 +433,7 @@ def plot_frame(frame, cols=None, uframe=None, units='ADU/s', scale='log', trace_
 
             # Add the figure to the tab list
             if tabs:
-                plot_tabs.append(TabPanel(child=column([fig, col_fig]), title=pname))
+                plot_tabs.append(Panel(child=column([fig, col_fig]), title=pname))
             else:
                 plot_tabs.append(fig)
 
@@ -441,13 +441,13 @@ def plot_frame(frame, cols=None, uframe=None, units='ADU/s', scale='log', trace_
 
             # No column object
             if tabs:
-                plot_tabs.append(TabPanel(child=fig, title=pname))
+                plot_tabs.append(Panel(child=fig, title=pname))
             else:
                 plot_tabs.append(fig)
 
     # Make the final tabbed figure
     if tabs:
-        final = TabPanel(tabs=plot_tabs)
+        final = Panel(tabs=plot_tabs)
     else:
         final = plot_tabs[0]
 
